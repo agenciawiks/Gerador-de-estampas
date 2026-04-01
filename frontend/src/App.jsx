@@ -1,667 +1,768 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Draggable from 'react-draggable';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import localforage from 'localforage';
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  Image as ImageIcon, 
-  Shirt, 
-  Download, 
-  Settings2, 
-  Palette, 
-  Layers,
-  CheckCircle2,
-  Trash2,
-  Upload,
-  RefreshCw,
-  FileText,
-  FileImage,
-  Sun,
-  Moon,
-  Zap,
-  ChevronRight,
-  Focus
+import {
+  Image as ImageIcon, Shirt, Download, Settings2, Palette, Layers,
+  CheckCircle2, Trash2, Upload, RefreshCw, FileText, FileImage,
+  Sun, Moon, Zap, ChevronRight, Focus, AlertCircle, CheckCircle,
+  X, Info, ImagePlus, MousePointer2, Crosshair,
 } from 'lucide-react';
+import './App.css';
 
+// ─── Toast hook ─────────────────────────────────────────────────────────────
+function useToast() {
+  const [toasts, setToasts] = useState([]);
+  const toast = useCallback((message, type = 'info') => {
+    const id = uuidv4();
+    setToasts(p => [...p, { id, message, type }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4200);
+  }, []);
+  const dismiss = useCallback(id => setToasts(p => p.filter(t => t.id !== id)), []);
+  return { toasts, toast, dismiss };
+}
+
+function ToastContainer({ toasts, dismiss }) {
+  const icon = { success: <CheckCircle size={15}/>, error: <AlertCircle size={15}/>, warning: <AlertCircle size={15}/>, info: <Info size={15}/> };
+  return (
+    <div className="toast-wrap">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          <span className="toast-icon">{icon[t.type]}</span>
+          <span className="toast-msg">{t.message}</span>
+          <button className="toast-close" onClick={() => dismiss(t.id)}><X size={13}/></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Brasil political palette ────────────────────────────────────────────────
+const BRASIL_COLORS = [
+  { hex: '#009C3B', label: 'Verde Brasil'   },
+  { hex: '#FFDF00', label: 'Amarelo Ouro'   },
+  { hex: '#002776', label: 'Azul Marinho'   },
+  { hex: '#000000', label: 'Preto'          },
+  { hex: '#FFFFFF', label: 'Branco'         },
+  { hex: '#CC1414', label: 'Vermelho'       },
+  { hex: '#1B5E20', label: 'Verde Militar'  },
+  { hex: '#D4A017', label: 'Dourado'        },
+  { hex: '#1565C0', label: 'Azul Real'      },
+  { hex: '#8B4513', label: 'Marrom Terra'   },
+  { hex: '#D2B48C', label: 'Cáqui'          },
+  { hex: '#F5F5DC', label: 'Creme Pátria'  },
+];
+
+// ─── App ─────────────────────────────────────────────────────────────────────
 function App() {
-  const [fundos, setFundos] = useState([]);
-  const [estampas, setEstampas] = useState([]);
-  
-  const [fundoPaths, setFundoPaths] = useState([]); // Multiple selection for batch IDs
-  const [estampaSel, setEstampaSel] = useState(null);
-  const [fundoPreview, setFundoPreview] = useState(null); // Active background for canvas
-  
-  // Theme Toggle
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  
-  // States by ID/Path
+  const [fundos,    setFundos]    = useState([]);
+  const [estampas,  setEstampas]  = useState([]);
+  const [fundoPaths,    setFundoPaths]    = useState([]);
+  const [estampaSel,    setEstampaSel]    = useState(null);
+  const [fundoPreview,  setFundoPreview]  = useState(null);
+  const [isDarkMode,    setIsDarkMode]    = useState(true);
   const [estampaConfigs, setEstampaConfigs] = useState({});
-  const [fundoConfigs, setFundoConfigs] = useState({});
-
-  const [nomeExport, setNomeExport] = useState(''); // Custom naming prefix
-
-  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
-  const [canvasScale, setCanvasScale] = useState(1);
-  const fundoContainerRef = useRef(null);
-  const nodeRef = useRef(null);
-  const fileInputRef = useRef(null);
-  
-  const [abaAtual, setAbaAtual] = useState('fundos'); // fundos | estampas
-  const [loadingBatch, setLoadingBatch] = useState(false);
+  const [fundoConfigs,   setFundoConfigs]   = useState({});
+  const [nomeExport,    setNomeExport]    = useState('');
+  const [naturalSize,   setNaturalSize]   = useState({ w: 0, h: 0 });
+  const [canvasScale,   setCanvasScale]   = useState(1);
+  const [abaAtual,      setAbaAtual]      = useState('fundos');
+  const [batchProgress, setBatchProgress] = useState(null); // { current, total }
   const [loadingSingle, setLoadingSingle] = useState(false);
+  const [isDragOver,    setIsDragOver]    = useState(false);
 
-  // Helper getters
-  const getCorHex = () => fundoPreview ? (fundoConfigs[fundoPreview.id]?.corHex ?? '#008237') : '#008237';
-  const getUsarCorOriginal = () => fundoPreview ? (fundoConfigs[fundoPreview.id]?.usarCorOriginal ?? false) : false;
-  
-  const getPosX = () => estampaSel ? (estampaConfigs[estampaSel.id]?.posX ?? 0) : 0;
-  const getPosY = () => estampaSel ? (estampaConfigs[estampaSel.id]?.posY ?? 0) : 0;
-  const getEscala = () => estampaSel ? (estampaConfigs[estampaSel.id]?.escala ?? 100) : 100;
+  const fundoContainerRef = useRef(null);
+  const nodeRef           = useRef(null);
+  const fileInputRef      = useRef(null);
+  const { toasts, toast, dismiss } = useToast();
+
+  // ── Getters ──────────────────────────────────────────────────────────────
+  const getCfgFundo  = (key, def) => fundoPreview  ? (fundoConfigs[fundoPreview.id]?.[key]  ?? def) : def;
+  const getCfgEstamp = (key, def) => estampaSel    ? (estampaConfigs[estampaSel.id]?.[key]  ?? def) : def;
+  const corHex        = getCfgFundo('corHex', '#009C3B');
+  const usarCorOrig   = getCfgFundo('usarCorOriginal', false);
+  const posX          = getCfgEstamp('posX', 0);
+  const posY          = getCfgEstamp('posY', 0);
+  const escala        = getCfgEstamp('escala', 100);
 
   const setFundoConfig = (key, val) => {
     if (!fundoPreview) return;
-    setFundoConfigs(prev => ({
-      ...prev,
-      [fundoPreview.id]: { 
-        ...(prev[fundoPreview.id] || { corHex: '#008237', usarCorOriginal: false }), 
-        [key]: val 
-      }
+    setFundoConfigs(p => ({
+      ...p,
+      [fundoPreview.id]: { ...(p[fundoPreview.id] || { corHex: '#009C3B', usarCorOriginal: false }), [key]: val },
     }));
   };
-
   const setEstampaConfig = (id, key, val) => {
-    setEstampaConfigs(prev => ({
-      ...prev,
-      [id]: { 
-        ...(prev[id] || { posX: 0, posY: 0, escala: 100 }), 
-        [key]: val 
-      }
+    setEstampaConfigs(p => ({
+      ...p,
+      [id]: { ...(p[id] || { posX: 0, posY: 0, escala: 100 }), [key]: val },
     }));
   };
 
-  // Carregar dados salvos no navegador (IndexedDB)
-  const loadDataFromDB = async () => {
-    try {
-      const dbFundos = await localforage.getItem('db_fundos') || [];
-      const dbEstampas = await localforage.getItem('db_estampas') || [];
-      const dbThemeMode = await localforage.getItem('db_theme_mode');
-      
-      if (dbThemeMode !== null) setIsDarkMode(dbThemeMode);
-
-      setFundos(dbFundos);
-      setEstampas(dbEstampas);
-      
-      if (dbFundos.length > 0 && !fundoPreview) {
-        setFundoPreview(dbFundos[0]);
-        setFundoPaths([dbFundos[0].id]);
-      }
-      if (dbEstampas.length > 0 && !estampaSel) {
-        setEstampaSel(dbEstampas[0]);
-      }
-    } catch (err) {
-      console.error('Erro ao ler DB Local:', err);
-    }
-  };
-
+  // ── Load DB ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    loadDataFromDB();
+    (async () => {
+      try {
+        const dbF  = await localforage.getItem('db_fundos')     || [];
+        const dbE  = await localforage.getItem('db_estampas')   || [];
+        const dbTh = await localforage.getItem('db_theme_mode');
+        if (dbTh !== null) setIsDarkMode(dbTh);
+        setFundos(dbF);
+        setEstampas(dbE);
+        if (dbF.length > 0) { setFundoPreview(dbF[0]); setFundoPaths([dbF[0].id]); }
+        if (dbE.length > 0)   setEstampaSel(dbE[0]);
+      } catch (e) { console.error('DB load error:', e); }
+    })();
   }, []);
 
   const toggleTheme = () => {
-    const newVal = !isDarkMode;
-    setIsDarkMode(newVal);
-    localforage.setItem('db_theme_mode', newVal);
+    const v = !isDarkMode;
+    setIsDarkMode(v);
+    localforage.setItem('db_theme_mode', v);
   };
 
-  // Update natural size when print changes
+  // ── Natural size of stamp ─────────────────────────────────────────────────
   useEffect(() => {
-    if (estampaSel) {
-      const img = new Image();
-      img.onload = () => setNaturalSize({ w: img.naturalWidth || 300, h: img.naturalHeight || 300 });
-      img.onerror = () => setNaturalSize({ w: 300, h: 300 });
-      img.src = estampaSel.dataUrl;
-    }
+    if (!estampaSel) return;
+    const img = new Image();
+    img.onload  = () => setNaturalSize({ w: img.naturalWidth || 300, h: img.naturalHeight || 300 });
+    img.onerror = () => setNaturalSize({ w: 300, h: 300 });
+    img.src = estampaSel.dataUrl;
   }, [estampaSel]);
 
-  // Adjust canvas scale for editing visually
+  // ── Canvas scale ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (fundoContainerRef.current && fundoPreview) {
-      const img = new Image();
-      img.onload = () => {
-        const containerW = fundoContainerRef.current.clientWidth;
-        const containerH = fundoContainerRef.current.clientHeight;
-        const s = Math.min(containerW / img.naturalWidth, containerH / img.naturalHeight, 1);
-        setCanvasScale(s);
-      };
-      img.src = fundoPreview.dataUrl;
-    }
+    if (!fundoContainerRef.current || !fundoPreview) return;
+    const img = new Image();
+    img.onload = () => {
+      const { clientWidth: cW, clientHeight: cH } = fundoContainerRef.current;
+      setCanvasScale(Math.min(cW / img.naturalWidth, cH / img.naturalHeight, 1));
+    };
+    img.src = fundoPreview.dataUrl;
   }, [fundoPreview]);
 
-  // Upload handler via HTML5 FileReader (Base64)
-  const handleFileUpload = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    let isFundo = abaAtual === 'fundos';
-    const novosItens = [];
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file.type.startsWith('image/')) continue;
-        
-        await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                novosItens.push({
-                    id: uuidv4(),
-                    nome: file.name,
-                    dataUrl: event.target.result // base64 string
-                });
-                resolve();
-            };
-            reader.readAsDataURL(file);
-        });
+  // ── File processing ───────────────────────────────────────────────────────
+  const processFiles = useCallback(async (files) => {
+    if (!files?.length) return;
+    const isFundo = abaAtual === 'fundos';
+    const novos = [];
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      await new Promise(res => {
+        const r = new FileReader();
+        r.onload = ev => { novos.push({ id: uuidv4(), nome: file.name, dataUrl: ev.target.result }); res(); };
+        r.readAsDataURL(file);
+      });
     }
+    if (!novos.length) return;
+    if (isFundo) {
+      const list = [...fundos, ...novos];
+      setFundos(list);
+      await localforage.setItem('db_fundos', list);
+      if (!fundoPreview) { setFundoPreview(novos[0]); setFundoPaths([novos[0].id]); }
+      toast(`${novos.length} mockup(s) adicionado(s)!`, 'success');
+    } else {
+      const list = [...estampas, ...novos];
+      setEstampas(list);
+      await localforage.setItem('db_estampas', list);
+      if (!estampaSel) setEstampaSel(novos[0]);
+      toast(`${novos.length} logo(s) adicionado(s)!`, 'success');
+    }
+  }, [abaAtual, fundos, estampas, fundoPreview, estampaSel, toast]);
 
-    if (novosItens.length > 0) {
-        if (isFundo) {
-            const newList = [...fundos, ...novosItens];
-            setFundos(newList);
-            await localforage.setItem('db_fundos', newList);
-            if (!fundoPreview) {
-                setFundoPreview(novosItens[0]);
-                setFundoPaths([novosItens[0].id]);
-            }
-        } else {
-            const newList = [...estampas, ...novosItens];
-            setEstampas(newList);
-            await localforage.setItem('db_estampas', newList);
-            if (!estampaSel) setEstampaSel(novosItens[0]);
-        }
-    }
-  };
-  
+  const handleFileUpload = e => processFiles(e.target.files);
+  const handleDragOver   = e => { e.preventDefault(); setIsDragOver(true); };
+  const handleDragLeave  = ()  => setIsDragOver(false);
+  const handleDrop       = e  => { e.preventDefault(); setIsDragOver(false); processFiles(e.dataTransfer.files); };
+
+  // ── Remove item ───────────────────────────────────────────────────────────
   const removerItemDb = async (id, isFundo) => {
-      if (isFundo) {
-          const newList = fundos.filter(f => f.id !== id);
-          setFundos(newList);
-          await localforage.setItem('db_fundos', newList);
-          if (fundoPreview?.id === id) setFundoPreview(newList[0] || null);
-          setFundoPaths(fundoPaths.filter(fid => fid !== id));
-      } else {
-          const newList = estampas.filter(e => e.id !== id);
-          setEstampas(newList);
-          await localforage.setItem('db_estampas', newList);
-          if (estampaSel?.id === id) setEstampaSel(newList[0] || null);
-      }
+    if (isFundo) {
+      const list = fundos.filter(f => f.id !== id);
+      setFundos(list);
+      await localforage.setItem('db_fundos', list);
+      if (fundoPreview?.id === id) setFundoPreview(list[0] || null);
+      setFundoPaths(p => p.filter(fid => fid !== id));
+    } else {
+      const list = estampas.filter(e => e.id !== id);
+      setEstampas(list);
+      await localforage.setItem('db_estampas', list);
+      if (estampaSel?.id === id) setEstampaSel(list[0] || null);
+    }
+    toast('Item removido.', 'warning');
   };
 
   const toggleFundoPath = (id, item) => {
     if (fundoPaths.includes(id)) {
-      setFundoPaths(fundoPaths.filter(f => f !== id));
-      if (fundoPreview?.id === id) {
-        const remaining = fundoPaths.filter(f => f !== id);
-        if (remaining.length > 0) {
-          setFundoPreview(fundos.find(f => f.id === remaining[0]));
-        } else {
-          setFundoPreview(null);
-        }
-      }
+      const rem = fundoPaths.filter(f => f !== id);
+      setFundoPaths(rem);
+      if (fundoPreview?.id === id)
+        setFundoPreview(rem.length > 0 ? fundos.find(f => f.id === rem[0]) : null);
     } else {
-      setFundoPaths([...fundoPaths, id]);
+      setFundoPaths(p => [...p, id]);
       setFundoPreview(item);
     }
   };
 
-  const handleDrag = (e, ui) => {
+  const handleDrag = (_, ui) => {
     if (!estampaSel) return;
-    const px = Math.max(0, Math.round(ui.x));
-    const py = Math.max(0, Math.round(ui.y));
-    setEstampaConfig(estampaSel.id, 'posX', px);
-    setEstampaConfig(estampaSel.id, 'posY', py);
+    setEstampaConfig(estampaSel.id, 'posX', Math.max(0, Math.round(ui.x)));
+    setEstampaConfig(estampaSel.id, 'posY', Math.max(0, Math.round(ui.y)));
   };
 
   const centralizarEstampa = () => {
-    if (fundoPreview && estampaSel && naturalSize.w > 0) {
-      const escalaH = getEscala();
-      const estampaW = naturalSize.w * Math.max(0.05, escalaH / 100);
-      const estampaH = naturalSize.h * Math.max(0.05, escalaH / 100);
-      
-      const img = new Image();
-      img.onload = () => {
-        const bgW = img.naturalWidth;
-        const bgH = img.naturalHeight;
-        const cx = Math.round(Math.max(0, (bgW - estampaW) / 2));
-        const cy = Math.round(Math.max(0, (bgH - estampaH) / 2));
-        setEstampaConfig(estampaSel.id, 'posX', cx);
-        setEstampaConfig(estampaSel.id, 'posY', cy);
+    if (!fundoPreview || !estampaSel || naturalSize.w <= 0) return;
+    const fator = Math.max(0.05, escala / 100);
+    const img = new Image();
+    img.onload = () => {
+      setEstampaConfig(estampaSel.id, 'posX', Math.round(Math.max(0, (img.naturalWidth  - naturalSize.w * fator) / 2)));
+      setEstampaConfig(estampaSel.id, 'posY', Math.round(Math.max(0, (img.naturalHeight - naturalSize.h * fator) / 2)));
+    };
+    img.src = fundoPreview.dataUrl;
+  };
+
+  // ── Image generation (canvas) ─────────────────────────────────────────────
+  const gerarImagemFinal = (fundoItem, estampaItem, cfg) =>
+    new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx    = canvas.getContext('2d');
+      const iF = new Image(); iF.crossOrigin = 'anonymous';
+      const iE = new Image(); iE.crossOrigin = 'anonymous';
+      iF.onload = () => {
+        canvas.width  = iF.naturalWidth;
+        canvas.height = iF.naturalHeight;
+        ctx.drawImage(iF, 0, 0, canvas.width, canvas.height);
+        iE.onload = () => {
+          const fator = Math.max(0.05, cfg.escala / 100);
+          const fW = Math.max(1, iE.naturalWidth  * fator);
+          const fH = Math.max(1, iE.naturalHeight * fator);
+          if (!cfg.usarCorOriginal && cfg.corHex) {
+            const oc = document.createElement('canvas');
+            const ox = oc.getContext('2d');
+            oc.width = fW; oc.height = fH;
+            ox.drawImage(iE, 0, 0, fW, fH);
+            ox.globalCompositeOperation = 'source-in';
+            ox.fillStyle = cfg.corHex;
+            ox.fillRect(0, 0, fW, fH);
+            ctx.drawImage(oc, cfg.posX, cfg.posY, fW, fH);
+          } else {
+            ctx.drawImage(iE, cfg.posX, cfg.posY, fW, fH);
+          }
+          canvas.toBlob(resolve, 'image/jpeg', 0.95);
+        };
+        iE.onerror = reject;
+        iE.src = estampaItem.dataUrl;
       };
-      img.src = fundoPreview.dataUrl;
-    }
-  };
+      iF.onerror = reject;
+      iF.src = fundoItem.dataUrl;
+    });
 
-  // Image Processing Core - Zero Server Canvas Rendering
-  const gerarImagemFinal = (fundoItem, estampaItem, configs) => {
-      return new Promise((resolve, reject) => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          const imgFundo = new Image();
-          const imgEstampa = new Image();
-          
-          imgFundo.crossOrigin = "anonymous";
-          imgEstampa.crossOrigin = "anonymous";
-
-          imgFundo.onload = () => {
-              canvas.width = imgFundo.naturalWidth;
-              canvas.height = imgFundo.naturalHeight;
-              
-              // 1. Draw Background
-              ctx.drawImage(imgFundo, 0, 0, canvas.width, canvas.height);
-              
-              imgEstampa.onload = () => {
-                  const fator = Math.max(0.05, configs.escala / 100);
-                  const fEstampaW = Math.max(1, imgEstampa.naturalWidth * fator);
-                  const fEstampaH = Math.max(1, imgEstampa.naturalHeight * fator);
-                  
-                  const px = configs.posX;
-                  const py = configs.posY;
-                  
-                  // Se deve colorir, usamos um canvas offscreen pra aplicar TINT via globalComposite
-                  if (!configs.usarCorOriginal && configs.corHex) {
-                      const oc = document.createElement('canvas');
-                      const octx = oc.getContext('2d');
-                      oc.width = fEstampaW;
-                      oc.height = fEstampaH;
-                      
-                      // Draw logo
-                      octx.drawImage(imgEstampa, 0, 0, fEstampaW, fEstampaH);
-                      // Fill with color keeping alpha shape
-                      octx.globalCompositeOperation = 'source-in';
-                      octx.fillStyle = configs.corHex;
-                      octx.fillRect(0, 0, fEstampaW, fEstampaH);
-                      
-                      // Paste tinted logo
-                      ctx.drawImage(oc, px, py, fEstampaW, fEstampaH);
-                  } else {
-                      // Paste raw logic
-                      ctx.drawImage(imgEstampa, px, py, fEstampaW, fEstampaH);
-                  }
-                  
-                  // Export as Blob jpg
-                  canvas.toBlob((blob) => {
-                      resolve(blob);
-                  }, 'image/jpeg', 0.95);
-              };
-              imgEstampa.onerror = reject;
-              imgEstampa.src = estampaItem.dataUrl;
-          };
-          imgFundo.onerror = reject;
-          imgFundo.src = fundoItem.dataUrl;
-      });
-  };
-
+  // ── Export single ─────────────────────────────────────────────────────────
   const baixarImagemUnica = async () => {
-    if (!estampaSel || !fundoPreview) return alert('Selecione estampa e um mockup.');
+    if (!estampaSel || !fundoPreview) { toast('Selecione um mockup e um logo.', 'warning'); return; }
     setLoadingSingle(true);
     try {
-      const fConf = fundoConfigs[fundoPreview.id] || { corHex: '#008237', usarCorOriginal: false };
-      const eConf = estampaConfigs[estampaSel.id] || { posX: 0, posY: 0, escala: 100 };
-      
-      const blob = await gerarImagemFinal(fundoPreview, estampaSel, { ...eConf, ...fConf });
+      const fConf = fundoConfigs[fundoPreview.id]  || { corHex: '#009C3B', usarCorOriginal: false };
+      const eConf = estampaConfigs[estampaSel.id]  || { posX: 0, posY: 0, escala: 100 };
+      const blob  = await gerarImagemFinal(fundoPreview, estampaSel, { ...eConf, ...fConf });
       if (blob) {
-        const finalName = nomeExport.trim() !== '' 
-          ? `${nomeExport}.jpg` 
-          : `${fundoPreview.nome.replace(/\.[^/.]+$/, "")}__${estampaSel.nome.replace(/\.[^/.]+$/, "")}.jpg`;
-        saveAs(blob, finalName);
+        const name = nomeExport.trim()
+          ? `${nomeExport}.jpg`
+          : `${fundoPreview.nome.replace(/\.[^/.]+$/, '')}__${estampaSel.nome.replace(/\.[^/.]+$/, '')}.jpg`;
+        saveAs(blob, name);
+        toast('Imagem exportada com sucesso!', 'success');
       }
-    } catch (e) {
-      alert('Erro ao baixar imagem única.');
-      console.error(e);
-    }
+    } catch (e) { toast('Erro ao gerar imagem.', 'error'); console.error(e); }
     setLoadingSingle(false);
   };
 
+  // ── Export batch ──────────────────────────────────────────────────────────
   const gerarLote = async () => {
-    if (!estampaSel || fundoPaths.length === 0) return alert('Selecione estampa e fundos.');
-    setLoadingBatch(true);
-    
+    if (!estampaSel || fundoPaths.length === 0) { toast('Selecione um logo e ao menos um mockup.', 'warning'); return; }
+    setBatchProgress({ current: 0, total: fundoPaths.length });
     try {
-      const zip = new JSZip();
-      let hasFiles = false;
-
+      const zip = new JSZip(); let hasFiles = false;
       for (let i = 0; i < fundoPaths.length; i++) {
-          const fId = fundoPaths[i];
-          const fundoItem = fundos.find(f => f.id === fId);
-          if (!fundoItem) continue;
-          
-          const fConf = fundoConfigs[fId] || { corHex: '#008237', usarCorOriginal: false };
-          const eConf = estampaConfigs[estampaSel.id] || { posX: 0, posY: 0, escala: 100 };
-          
-          const mergedBlob = await gerarImagemFinal(fundoItem, estampaSel, {
-              ...eConf,
-              ...fConf
-          });
-          
-          if (mergedBlob) {
-              const baseNameFundo = fundoItem.nome.replace(/\.[^/.]+$/, "");
-              const baseNameEstampa = estampaSel.nome.replace(/\.[^/.]+$/, "");
-              
-              const filename = nomeExport.trim() !== '' 
-                ? `${nomeExport}_${i + 1}.jpg` 
-                : `${baseNameFundo}__${baseNameEstampa}.jpg`;
-                
-              zip.file(filename, mergedBlob);
-              hasFiles = true;
-          }
+        const fItem = fundos.find(f => f.id === fundoPaths[i]);
+        if (!fItem) continue;
+        const fConf = fundoConfigs[fundoPaths[i]]  || { corHex: '#009C3B', usarCorOriginal: false };
+        const eConf = estampaConfigs[estampaSel.id] || { posX: 0, posY: 0, escala: 100 };
+        const blob  = await gerarImagemFinal(fItem, estampaSel, { ...eConf, ...fConf });
+        if (blob) {
+          const fname = nomeExport.trim()
+            ? `${nomeExport}_${i + 1}.jpg`
+            : `${fItem.nome.replace(/\.[^/.]+$/, '')}__${estampaSel.nome.replace(/\.[^/.]+$/, '')}.jpg`;
+          zip.file(fname, blob);
+          hasFiles = true;
+        }
+        setBatchProgress({ current: i + 1, total: fundoPaths.length });
       }
-
       if (hasFiles) {
-          const zipContent = await zip.generateAsync({ type: "blob" });
-          saveAs(zipContent, nomeExport.trim() !== '' ? `${nomeExport}.zip` : "Lote_Estampas_Web.zip");
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        saveAs(zipBlob, nomeExport.trim() ? `${nomeExport}.zip` : 'Lote_Estampas.zip');
+        toast(`Lote de ${fundoPaths.length} imagens gerado!`, 'success');
       } else {
-          alert('Nenhuma imagem gerada com sucesso.');
+        toast('Nenhuma imagem gerada no lote.', 'error');
       }
-      
-    } catch (e) {
-      alert('Erro crítico ao gerar zip local');
-      console.error(e);
-    }
-    setLoadingBatch(false);
+    } catch (e) { toast('Erro crítico ao gerar ZIP.', 'error'); console.error(e); }
+    setBatchProgress(null);
   };
 
-  const estampaUrl = estampaSel ? estampaSel.dataUrl : null;
-  const fundoUrl = fundoPreview ? fundoPreview.dataUrl : null;
+  // ── Derived values ────────────────────────────────────────────────────────
+  const estampaUrl  = estampaSel?.dataUrl  ?? null;
+  const fundoUrl    = fundoPreview?.dataUrl ?? null;
+  const isBatch     = batchProgress !== null;
+  const batchPct    = isBatch ? Math.round((batchProgress.current / batchProgress.total) * 100) : 0;
+  const hasSelection = !!fundoPreview && !!estampaSel;
 
-  const posX = getPosX();
-  const posY = getPosY();
-  const escala = getEscala();
-  const corHex = getCorHex();
-  const usarCorOriginal = getUsarCorOriginal();
-
-  // Cores dinâmicas Dark/Light mode
-  const bgMain = isDarkMode ? "bg-slate-950 text-slate-200" : "bg-slate-50 text-slate-900";
-  const bgSidebar = isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200";
-  const bgHeader = isDarkMode ? "bg-slate-900" : "bg-slate-50";
-  const bgTabActive1 = isDarkMode ? "border-green-500 text-green-400 bg-slate-800/50" : "border-green-600 text-green-800 bg-slate-50";
-  const bgTabActive2 = isDarkMode ? "border-yellow-500 text-yellow-400 bg-slate-800/50" : "border-yellow-500 text-yellow-700 bg-slate-50";
-  const bgTabIdle = isDarkMode ? "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50" : "text-slate-500 hover:text-green-700 hover:bg-slate-50";
-  const borderList = isDarkMode ? "border-slate-800" : "border-slate-200";
-  const listBgIdle = isDarkMode ? "bg-slate-800/30 border-transparent hover:border-slate-700" : "bg-white border-slate-200 hover:border-green-300";
-  const listBgInner = isDarkMode ? "bg-slate-900 border-slate-800" : "bg-slate-100 border-slate-200";
-  const textInfo = isDarkMode ? "text-slate-300" : "text-slate-700";
-  const inputBg = isDarkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800";
-  const btnSecondary = isDarkMode ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300" : "bg-white hover:bg-slate-50 text-blue-700 border-blue-100";
-  const panelTitle = isDarkMode ? "text-slate-400" : "text-slate-500";
-  const iconMuted = isDarkMode ? "text-slate-500" : "text-slate-400";
-  const trashBtn = isDarkMode ? "text-slate-600 hover:text-red-400 hover:bg-red-400/10" : "text-slate-400 hover:text-red-500 hover:bg-red-50";
-  const uploadBtn = isDarkMode ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-300" : "bg-white hover:bg-slate-50 border-slate-300 text-slate-600";
-
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className={`flex h-screen font-sans transition-colors duration-200 ${bgMain}`}>
-      
-      {/* SIDEBAR LEFT */}
-      <div className={`w-80 border-r flex flex-col shadow-xl z-20 transition-colors duration-200 ${bgSidebar}`}>
-        <div className={`p-5 border-b flex flex-col justify-center items-center transition-colors duration-200 ${bgHeader} ${borderList} relative`}>
-          {/* Título Principal - Marca Opressora */}
-          <h1 className="text-xl font-black uppercase tracking-wider flex items-center gap-2 text-green-700">
-            <Zap size={22} className="text-yellow-500 fill-current"/>
-            CAMISETAS OPRESSORA
-          </h1>
-          <p className={`text-[10px] uppercase font-bold mt-1 tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-            MOCKUP STUDIO OFICIAL
-          </p>
-          
-          {/* Botão de Toggle DarkMode */}
-          <button 
-            onClick={toggleTheme} 
-            className={`absolute right-4 top-4 p-2 rounded-full transition-colors ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-yellow-400' : 'bg-white hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200'} `}
-            title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
-          >
-            {isDarkMode ? <Sun size={14}/> : <Moon size={14}/>}
-          </button>
-        </div>
-        
-        {/* Tabs */}
-        <div className={`flex border-b transition-colors duration-200 ${bgSidebar}`}>
-          <button 
-            className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${abaAtual === 'fundos' ? `border-b-4 ${bgTabActive1}` : bgTabIdle}`}
-            onClick={() => setAbaAtual('fundos')}
-          >
-            <Shirt size={16}/> MOCKUPS ({fundos.length})
-          </button>
-          <button 
-            className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${abaAtual === 'estampas' ? `border-b-4 ${bgTabActive2}` : bgTabIdle}`}
-            onClick={() => setAbaAtual('estampas')}
-          >
-            <ImageIcon size={16}/> LOGOS ({estampas.length})
-          </button>
-        </div>
+    <div
+      data-theme={isDarkMode ? 'dark' : 'light'}
+      className="flex h-screen font-sans overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
+      <ToastContainer toasts={toasts} dismiss={dismiss} />
 
-        {/* Upload Button */}
-        <div className={`px-4 py-4 border-b transition-colors duration-200 shadow-sm z-10 ${bgSidebar}`}>
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className={`w-full flex items-center justify-center gap-2 py-3 transition rounded-lg border-2 border-dashed font-bold uppercase ${uploadBtn}`}
+      {/* ══════════════ SIDEBAR LEFT ══════════════ */}
+      <aside
+        className={`w-72 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-xl flex-shrink-0 transition-all ${isDragOver ? 'drag-active' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* ── Header / Branding ── */}
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="brand-gradient text-sm font-black uppercase tracking-tight leading-tight">
+                Camisetas Opressoras
+              </h1>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
+                <Zap size={9} className="text-yellow-500 fill-yellow-500" />
+                Gerador de Mockups
+              </p>
+            </div>
+            <button
+              onClick={toggleTheme}
+              title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+              className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-yellow-400 border border-slate-200 dark:border-slate-700 transition-all flex-shrink-0 shadow-sm"
             >
-              <Upload size={18} className={isDarkMode ? "text-green-400" : "text-blue-600"}/> <span>Enviar Imagens</span>
+              {isDarkMode ? <Sun size={13}/> : <Moon size={13}/>}
             </button>
-            <input 
-              type="file" multiple accept="image/*" 
-              className="hidden" ref={fileInputRef} 
-              onChange={handleFileUpload} 
-            />
+          </div>
         </div>
 
-        {/* List */}
-        <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${isDarkMode ? 'bg-[#0f172a]' : 'bg-slate-50/50'}`}>
-          {abaAtual === 'fundos' && fundos.map(item => (
-            <div 
-              key={item.id} 
-              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative overflow-hidden group shadow-sm ${fundoPaths.includes(item.id) ? `border-green-500 ring-2 ${isDarkMode?'ring-green-900/50 bg-green-900/20':'ring-green-100'}` : listBgIdle}`}
+        {/* ── Tabs ── */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800">
+          {[
+            { key: 'fundos',   icon: <Shirt size={13}/>,     label: 'MOCKUPS', count: fundos.length,   color: 'green'  },
+            { key: 'estampas', icon: <ImageIcon size={13}/>, label: 'LOGOS',   count: estampas.length, color: 'yellow' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setAbaAtual(tab.key)}
+              className={`flex-1 py-2.5 text-[11px] font-bold flex justify-center items-center gap-1.5 border-b-2 transition-all ${
+                abaAtual === tab.key
+                  ? tab.color === 'green'
+                    ? 'border-green-500 text-green-600 dark:text-green-400 bg-green-50/60 dark:bg-green-900/20'
+                    : 'border-yellow-500 text-yellow-600 dark:text-yellow-400 bg-yellow-50/60 dark:bg-yellow-900/20'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+              }`}
             >
-               <img src={item.dataUrl} onClick={() => toggleFundoPath(item.id, item)} className={`w-16 h-16 object-cover cursor-pointer rounded-lg border ${listBgInner}`} />
-               <div className={`flex-1 truncate text-sm font-bold flex flex-col cursor-pointer ${textInfo}`} onClick={() => toggleFundoPath(item.id, item)}>
-                 <span className="truncate">{item.nome}</span>
-                 {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className={`w-4 h-4 rounded-full border shadow-sm ${borderList}`} style={{backgroundColor: fundoConfigs[item.id].corHex}}></div>
-                      <span className={`text-xs font-medium truncate uppercase ${isDarkMode?'text-slate-400':'text-slate-500'}`}>{fundoConfigs[item.id].corHex}</span>
-                    </div>
-                 )}
-               </div>
-               <button className={`p-2 rounded-lg transition ${trashBtn}`} onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, true); }}><Trash2 size={18}/></button>
-               {fundoPaths.includes(item.id) && <CheckCircle2 size={20} className={`absolute top-2 right-2 pointer-events-none drop-shadow-sm rounded-full ${isDarkMode?'text-green-400 bg-slate-900':'text-green-600 bg-white'}`}/>}
-            </div>
+              {tab.icon} {tab.label} ({tab.count})
+            </button>
           ))}
+        </div>
 
-          {abaAtual === 'estampas' && estampas.map(item => (
-            <div 
-              key={item.id} 
-              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative shadow-sm ${estampaSel?.id === item.id ? `border-yellow-500 ring-2 ${isDarkMode?'ring-yellow-900/50 bg-yellow-900/10':'ring-yellow-100'}` : listBgIdle}`}
-            >
-               <div className={`w-16 h-16 p-2 rounded-lg cursor-pointer flex items-center justify-center relative overflow-hidden border ${listBgInner}`} onClick={() => setEstampaSel(item)}>
-                 <img src={item.dataUrl} className="max-w-full max-h-full object-contain drop-shadow-sm" />
-               </div>
-               <div className={`flex-1 cursor-pointer truncate text-sm font-bold ${textInfo}`} onClick={() => setEstampaSel(item)}>{item.nome}</div>
-               <button className={`p-2 rounded-lg transition ${trashBtn}`} onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, false); }}><Trash2 size={18}/></button>
-            </div>
-          ))}
-          
+        {/* ── Upload button ── */}
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold uppercase transition-all ${
+              isDragOver
+                ? 'border-green-500 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-green-400 dark:hover:border-green-600 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50/40 dark:hover:bg-green-900/10'
+            }`}
+          >
+            {isDragOver ? <ImagePlus size={15} className="text-green-500"/> : <Upload size={15}/>}
+            {isDragOver ? 'Solte para adicionar' : 'Enviar Imagens'}
+          </button>
+          <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload}/>
+        </div>
+
+        {/* ── List ── */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/80 dark:bg-[#020617]">
+          {/* Mockups list */}
+          {abaAtual === 'fundos' && fundos.map(item => {
+            const selected = fundoPaths.includes(item.id);
+            return (
+              <div
+                key={item.id}
+                onClick={() => toggleFundoPath(item.id, item)}
+                className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative overflow-hidden group cursor-pointer ${
+                  selected
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950/40 shadow-green-500/10 shadow-md'
+                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-green-300 dark:hover:border-green-800'
+                }`}
+              >
+                <img src={item.dataUrl} alt={item.nome} className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 flex-shrink-0"/>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
+                  {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 flex-shrink-0" style={{ backgroundColor: fundoConfigs[item.id].corHex }}/>
+                      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase">{fundoConfigs[item.id].corHex}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  {selected && <CheckCircle2 size={15} className="text-green-500"/>}
+                  <button
+                    onClick={e => { e.stopPropagation(); removerItemDb(item.id, true); }}
+                    className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100"
+                    title="Remover"
+                  >
+                    <Trash2 size={13}/>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Logos list */}
+          {abaAtual === 'estampas' && estampas.map(item => {
+            const selected = estampaSel?.id === item.id;
+            return (
+              <div
+                key={item.id}
+                onClick={() => setEstampaSel(item)}
+                className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative group cursor-pointer ${
+                  selected
+                    ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 shadow-yellow-500/10 shadow-md'
+                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-yellow-300 dark:hover:border-yellow-800'
+                }`}
+              >
+                <div className="w-14 h-14 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 flex-shrink-0">
+                  <img src={item.dataUrl} alt={item.nome} className="max-w-full max-h-full object-contain drop-shadow-sm"/>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
+                  {selected && <span className="text-[10px] font-bold text-yellow-600 dark:text-yellow-400 mt-0.5 block">Selecionado</span>}
+                </div>
+                <button
+                  onClick={e => { e.stopPropagation(); removerItemDb(item.id, false); }}
+                  className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  title="Remover"
+                >
+                  <Trash2 size={13}/>
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Empty state */}
           {(abaAtual === 'fundos' ? fundos : estampas).length === 0 && (
-              <div className={`text-center text-sm font-medium mt-10 p-6 border border-dashed rounded-xl ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-500'}`}>Nenhuma arte na memória.<br/>Faça seu upload na nuvem.</div>
+            <div className="flex flex-col items-center text-center gap-3 mt-6 px-4 py-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+              <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                {abaAtual === 'fundos' ? <Shirt size={20} className="text-slate-400"/> : <ImageIcon size={20} className="text-slate-400"/>}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  {abaAtual === 'fundos' ? 'Nenhum mockup ainda' : 'Nenhum logo ainda'}
+                </p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
+                  Clique em "Enviar Imagens"<br/>ou arraste arquivos aqui.
+                </p>
+              </div>
+            </div>
           )}
         </div>
-      </div>
+      </aside>
 
-      {/* CANVAS MIDDLE */}
-      <div className={`flex-1 flex flex-col relative overflow-hidden transition-colors duration-200 ${isDarkMode ? 'bg-[#0f172a]' : 'bg-slate-100'}`}>
-        <div className={`absolute inset-0 opacity-5 pointer-events-none ${isDarkMode?'invert':''}`} style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-        {/* Top bar */}
-        <div className={`h-14 border-b flex items-center px-6 justify-between z-10 shadow-sm relative transition-colors duration-200 ${bgSidebar}`}>
-           <div className={`text-sm font-bold flex items-center ${isDarkMode?'text-slate-400':'text-slate-500'}`}>
-             {fundoPreview && <span className={`mr-4 border-2 px-3 py-1 rounded-full ${isDarkMode ? 'text-green-400 border-green-900 bg-green-900/20' : 'text-green-800 border-green-200 bg-green-50'}`}>{fundoPreview.nome}</span>}
-             <span className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}> <ChevronRight size={16} className="inline mr-1" />{fundoPaths.length} Mockups selecionados para produção</span>
-           </div>
+      {/* ══════════════ CANVAS MIDDLE ══════════════ */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-[#020617] relative min-w-0">
+        {/* Dot grid background */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle, #94a3b820 1px, transparent 0)', backgroundSize: '22px 22px' }}
+        />
+
+        {/* Top info bar */}
+        <div className="relative z-10 h-11 border-b border-slate-200 dark:border-slate-800 flex items-center px-5 gap-3 bg-white dark:bg-slate-900 shadow-sm flex-shrink-0">
+          {fundoPreview ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 truncate max-w-[200px]">
+              {fundoPreview.nome}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Nenhum mockup ativo</span>
+          )}
+          <ChevronRight size={13} className="text-slate-300 dark:text-slate-600 flex-shrink-0"/>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex-shrink-0">
+            {fundoPaths.length} mockup(s) no lote
+          </span>
+          {estampaSel && (
+            <>
+              <ChevronRight size={13} className="text-slate-300 dark:text-slate-600 flex-shrink-0"/>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 truncate max-w-[160px]">
+                {estampaSel.nome}
+              </span>
+            </>
+          )}
         </div>
-        
+
         {/* Workspace */}
         <div className="flex-1 flex items-center justify-center p-8 overflow-auto relative z-0" ref={fundoContainerRef}>
           {fundoUrl && estampaUrl ? (
-            <div className={`relative shadow-2xl aspect-auto rounded-md overflow-hidden ring-1 ${isDarkMode ? 'bg-black ring-slate-800 shadow-emerald-900/20' : 'bg-white ring-slate-900/5'}`} style={{
-                transform: `scale(${canvasScale})`,
-                transformOrigin: 'center center',
-            }}>
-               <img src={fundoUrl} className="block pointer-events-none select-none max-w-none" style={{ height: 'auto' }} onLoad={(e) => {
-                 const container = fundoContainerRef.current;
-                 const s = Math.min(container.clientWidth / e.target.naturalWidth, container.clientHeight / e.target.naturalHeight, 1);
-                 setCanvasScale(s);
-               }} />
+            <div
+              className="relative shadow-2xl rounded-md overflow-hidden ring-1 ring-black/10 dark:ring-white/5 bg-white dark:bg-black"
+              style={{ transform: `scale(${canvasScale})`, transformOrigin: 'center center' }}
+            >
+              <img
+                src={fundoUrl}
+                alt="Mockup"
+                className="block pointer-events-none select-none max-w-none"
+                onLoad={e => {
+                  const c = fundoContainerRef.current;
+                  if (c) setCanvasScale(Math.min(c.clientWidth / e.target.naturalWidth, c.clientHeight / e.target.naturalHeight, 1));
+                }}
+              />
+              <Draggable
+                nodeRef={nodeRef}
+                position={{ x: posX, y: posY }}
+                scale={canvasScale}
+                onDrag={handleDrag}
+                bounds="parent"
+              >
+                <div
+                  ref={nodeRef}
+                  className="absolute top-0 left-0 cursor-move outline outline-2 outline-blue-500/60 hover:outline-blue-600 group rounded-sm bg-slate-900/0"
+                  style={{
+                    width:    naturalSize.w > 0 ? naturalSize.w * Math.max(0.05, escala / 100) : 200,
+                    height:   naturalSize.h > 0 ? naturalSize.h * Math.max(0.05, escala / 100) : 200,
+                    minWidth: '30px', minHeight: '30px',
+                  }}
+                >
+                  {/* Color tint overlay */}
+                  {!usarCorOrig && (
+                    <div className="absolute inset-0 pointer-events-none z-10 mix-blend-multiply" style={{
+                      backgroundColor: corHex,
+                      WebkitMaskImage: `url(${JSON.stringify(estampaUrl)})`,
+                      WebkitMaskSize: '100% 100%', WebkitMaskPosition: 'center', WebkitMaskRepeat: 'no-repeat',
+                      maskImage: `url(${JSON.stringify(estampaUrl)})`,
+                      maskSize: '100% 100%', maskPosition: 'center', maskRepeat: 'no-repeat',
+                    }}/>
+                  )}
+                  <img src={estampaUrl} alt="Estampa" className={`w-full h-full object-contain pointer-events-none drop-shadow-md ${!usarCorOrig ? 'opacity-10 grayscale' : ''}`}/>
 
-               <Draggable 
-                 nodeRef={nodeRef}
-                 position={{ x: posX, y: posY }} 
-                 scale={canvasScale}
-                 onDrag={handleDrag}
-                 bounds="parent"
-               >
-                 <div ref={nodeRef} className="absolute top-0 left-0 cursor-move transition-shadow shadow-md outline outline-2 outline-blue-500/50 hover:outline-blue-600 group bg-slate-900/5 hover:bg-transparent rounded-sm" style={{
-                   width: naturalSize.w > 0 ? (naturalSize.w * Math.max(0.05, escala / 100)) : 200,
-                   height: naturalSize.h > 0 ? (naturalSize.h * Math.max(0.05, escala / 100)) : 200,
-                   minWidth: '50px',
-                   minHeight: '50px'
-                 }}>
-                    {!usarCorOriginal && (
-                      <div className="absolute inset-0 pointer-events-none z-10 mix-blend-multiply" style={{
-                        backgroundColor: corHex,
-                        WebkitMaskImage: `url(${JSON.stringify(estampaUrl)})`,
-                        WebkitMaskSize: '100% 100%',
-                        WebkitMaskPosition: 'center',
-                        WebkitMaskRepeat: 'no-repeat',
-                        maskImage: `url(${JSON.stringify(estampaUrl)})`,
-                        maskSize: '100% 100%',
-                        maskPosition: 'center',
-                        maskRepeat: 'no-repeat'
-                      }} />
-                    )}
-                    
-                    <img src={estampaUrl} className={`w-full h-full object-contain pointer-events-none drop-shadow-md ${!usarCorOriginal ? 'opacity-10 grayscale' : ''}`} />
-                    
-                    {/* Position Tooltip */}
-                    <div className={`absolute -bottom-8 left-1/2 -translate-x-1/2 font-bold text-xs px-3 py-1.5 rounded shadow-xl opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 transition-all scale-95 group-hover:scale-100 ${isDarkMode?'bg-slate-200 text-slate-900 border border-slate-300':'bg-slate-900 text-white'}`}>
-                      X: {posX} • Y: {posY}
-                    </div>
-                 </div>
-               </Draggable>
+                  {/* Position tooltip */}
+                  <div className={`absolute -bottom-7 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 transition-all pointer-events-none ${isDarkMode ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-white'}`}>
+                    X:{posX} Y:{posY}
+                  </div>
+                </div>
+              </Draggable>
             </div>
           ) : (
-            <div className={`flex flex-col items-center gap-4 p-12 rounded-2xl shadow-sm border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-500' : 'bg-white border-slate-200 text-slate-400'}`}>
-               <Layers size={64} className={`opacity-20 ${isDarkMode ? 'text-slate-400' : 'text-slate-800'}`}/>
-               <p className={`font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Carregue suas artes para moldar sua coleção.</p>
+            /* Empty canvas state */
+            <div className={`flex flex-col items-center gap-4 p-12 rounded-2xl border-2 border-dashed ${isDarkMode ? 'border-slate-800 bg-slate-900/50 text-slate-500' : 'border-slate-200 bg-white text-slate-400'}`}>
+              <Layers size={52} className="opacity-20"/>
+              <div className="text-center">
+                <p className="font-bold text-sm mb-1">Canvas aguardando</p>
+                <p className="text-xs leading-relaxed opacity-70">
+                  Envie um <span className="font-bold text-green-500">mockup</span> e um <span className="font-bold text-yellow-500">logo</span><br/>
+                  pelo painel esquerdo para começar.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest opacity-40">
+                <MousePointer2 size={12}/> Arraste para posicionar
+              </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
 
-      {/* SIDEBAR RIGHT (Properties) */}
-      {fundoPreview && estampaSel && (
-        <div className={`w-80 border-l flex flex-col z-20 shadow-[-4px_0_15px_rgba(0,0,0,0.03)] p-5 overflow-y-auto transition-colors duration-200 ${bgSidebar}`}>
-          <h2 className={`text-xs uppercase tracking-widest font-black flex items-center gap-2 mb-4 ${panelTitle}`}>
-            <Settings2 size={16}/> Configurações Visuais
-          </h2>
-          
-          <div className={`mb-6 text-xs px-3 py-3 rounded-lg border leading-tight ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
-            As alterações modificam a estampa base no mockup: <span className={`font-bold max-w-full truncate block mt-1 ${isDarkMode?'text-blue-400':'text-blue-600'}`}>{fundoPreview.nome}</span>
-          </div>
+      {/* ══════════════ SIDEBAR RIGHT ══════════════ */}
+      <aside className="w-72 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col z-20 shadow-[-4px_0_20px_rgba(0,0,0,0.04)] flex-shrink-0 overflow-y-auto">
 
-          {/* Colors */}
-          <div className={`mb-6 border rounded-xl p-4 shadow-sm ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-             <label className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2 ${textInfo}`}>
-               <Palette size={14} className={isDarkMode ? 'text-green-400' : 'text-green-600'}/> Preenchimento Hex
-             </label>
-             
-             <div className="grid grid-cols-6 gap-2 mb-4">
-               {['#008237', '#fed800', '#1c3d79', '#000000', '#ffffff', '#ef4444'].map(c => (
-                 <button 
-                   key={c} 
-                   onClick={() => { setFundoConfig('corHex', c); setFundoConfig('usarCorOriginal', false); }}
-                   className={`w-full aspect-square rounded-full border-2 transition-transform hover:scale-110 shadow-sm ${corHex === c && !usarCorOriginal ? `border-green-500 scale-110 ring-2 ${isDarkMode?'ring-green-900/50':'ring-green-100'}` : (isDarkMode?'border-slate-700':'border-slate-300')}`}
-                   style={{ backgroundColor: c }}
-                 />
-               ))}
-             </div>
-             
-             <div className="flex items-center gap-3">
-               <input type="color" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className={`w-10 h-10 rounded border overflow-hidden cursor-pointer shrink-0 ${isDarkMode?'border-slate-700 bg-slate-800':'border-slate-300'}`} />
-               <input type="text" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className={`border text-sm rounded-lg px-3 py-2 uppercase flex-1 font-mono font-bold tracking-widest disabled:opacity-50 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all ${inputBg}`} />
-             </div>
-             
-             <label className="flex items-center gap-2 mt-4 cursor-pointer group">
-               <div className="relative flex items-center">
-                   <input type="checkbox" checked={usarCorOriginal} onChange={e => setFundoConfig('usarCorOriginal', e.target.checked)} className="peer sr-only" />
-                   <div className={`w-10 h-6 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 ${isDarkMode ? 'bg-slate-700 after:border-slate-600' : 'bg-slate-300 after:border-slate-300'}`}></div>
-               </div>
-               <span className={`text-sm font-semibold transition-colors ${isDarkMode ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-600 group-hover:text-slate-900'}`}>Desativar Colorização (Original)</span>
-             </label>
-          </div>
-          
-          {/* Transform */}
-          <div className={`mb-6 border rounded-xl p-4 shadow-sm ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-             <div className="flex justify-between items-end mb-4">
-               <label className={`text-xs font-bold uppercase tracking-wider ${textInfo}`}>Tamanho Padrão</label>
-               <span className={`text-xs font-black font-mono px-2 py-1 rounded ${isDarkMode ? 'text-green-400 bg-green-900/30' : 'text-green-700 bg-green-100'}`}>{escala}%</span>
-             </div>
-             <input 
-               type="range" min="10" max="250" value={escala} 
-               onChange={e => {
-                 if (estampaSel) setEstampaConfig(estampaSel.id, 'escala', Number(e.target.value));
-               }}
-               className="w-full accent-green-600"
-             />
-             <button onClick={centralizarEstampa} className={`w-full mt-4 text-xs font-bold uppercase tracking-wider py-2.5 rounded-lg transition-colors border shadow-sm flex justify-center items-center gap-2 ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100/50 hover:bg-slate-100 border-slate-200 text-slate-600'}`}>
-                <Focus size={14}/> Auto-Center (Alvo)
-             </button>
-          </div>
-
-          {/* Export Settings */}
-          <div className={`mb-6 p-4 rounded-xl border ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-transparent border-transparent'}`}>
-            <label className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${textInfo}`}>
-               <FileText size={14} className={isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}/> Prefixo Customizado
-            </label>
-            <input 
-              type="text" 
-              placeholder="Ex: nova_colecao_patria"
-              value={nomeExport}
-              onChange={e => setNomeExport(e.target.value)}
-              className={`w-full border text-sm font-medium rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm ${inputBg}`}
-            />
-            <p className={`text-[10px] mt-2 font-medium leading-tight ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-              Vazio = Usará o nome puro `&lt;mockup&gt; + &lt;logo&gt;`. No lote ZIP, adicionaremos a trilha _1, _2...
-            </p>
-          </div>
-  
-          <div className="mt-auto space-y-3 pt-2">
-             <button 
-               onClick={baixarImagemUnica} 
-               disabled={loadingSingle || !estampaSel || !fundoPreview}
-               className={`w-full font-bold py-3.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-blue-400 border-slate-700' : 'bg-white hover:bg-slate-50 text-blue-700 border-blue-100 hover:border-blue-200'}`}
-             >
-               {loadingSingle ? <RefreshCw className="animate-spin" size={18}/> : <FileImage size={18}/>}
-               BAIXAR FOTO ATUAL
-             </button>
-
-             <button 
-               onClick={gerarLote} 
-               disabled={loadingBatch || fundoPaths.length === 0}
-               className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-wider py-4 rounded-xl shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 border border-green-700/50"
-             >
-               {loadingBatch ? <RefreshCw className="animate-spin" size={20}/> : <Download size={20}/>}
-               ESCALONAR LOTE ({fundoPaths.length})
-             </button>
-          </div>
+        {/* Panel header */}
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+          <Settings2 size={14} className="text-slate-400 dark:text-slate-500"/>
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Configurações</h2>
         </div>
-      )}
+
+        {hasSelection ? (
+          <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+            {/* Active mockup info */}
+            <div className="text-xs px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 leading-snug">
+              Editando:
+              <span className="font-bold text-blue-600 dark:text-blue-400 truncate block mt-0.5">{fundoPreview.nome}</span>
+            </div>
+
+            {/* ── Color fill ── */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-950/60 space-y-3">
+              <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                <Palette size={13} className="text-green-500"/>
+                Preenchimento
+              </label>
+
+              {/* Palette grid */}
+              <div className="grid grid-cols-6 gap-1.5">
+                {BRASIL_COLORS.map(c => (
+                  <div key={c.hex} className="swatch-wrap">
+                    <button
+                      onClick={() => { setFundoConfig('corHex', c.hex); setFundoConfig('usarCorOriginal', false); }}
+                      title={c.label}
+                      className={`w-full aspect-square rounded-full border-2 transition-all hover:scale-110 shadow-sm ${
+                        corHex === c.hex && !usarCorOrig
+                          ? 'border-blue-500 scale-110 ring-2 ring-blue-500/30'
+                          : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                    />
+                    <span className="swatch-tip">{c.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom color row */}
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="color"
+                  value={corHex}
+                  onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }}
+                  disabled={usarCorOrig}
+                  className="w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden cursor-pointer flex-shrink-0 disabled:opacity-40"
+                />
+                <input
+                  type="text"
+                  value={corHex}
+                  onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }}
+                  disabled={usarCorOrig}
+                  className="flex-1 border border-slate-200 dark:border-slate-700 text-xs rounded-lg px-3 py-2 uppercase font-mono font-bold tracking-widest focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 disabled:opacity-40"
+                />
+              </div>
+
+              {/* Toggle original color */}
+              <label className="flex items-center gap-2.5 cursor-pointer group">
+                <div className="relative flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={usarCorOrig}
+                    onChange={e => setFundoConfig('usarCorOriginal', e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <div className="w-9 h-5 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 bg-slate-300 dark:bg-slate-700 after:border-slate-300 dark:after:border-slate-600"/>
+                </div>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">
+                  Cor original (sem tint)
+                </span>
+              </label>
+            </div>
+
+            {/* ── Scale & position ── */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-950/60 space-y-3">
+              <div className="flex justify-between items-center">
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Escala</label>
+                <span className="text-xs font-black font-mono px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">{escala}%</span>
+              </div>
+              <input
+                type="range" min="5" max="250" value={escala}
+                onChange={e => estampaSel && setEstampaConfig(estampaSel.id, 'escala', Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <div className="flex justify-between bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg">
+                  <span>X</span><span className="font-mono text-slate-700 dark:text-slate-200">{posX}px</span>
+                </div>
+                <div className="flex justify-between bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg">
+                  <span>Y</span><span className="font-mono text-slate-700 dark:text-slate-200">{posY}px</span>
+                </div>
+              </div>
+              <button
+                onClick={centralizarEstampa}
+                className="w-full text-[11px] font-bold uppercase tracking-wide py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Crosshair size={12}/> Centralizar automaticamente
+              </button>
+            </div>
+
+            {/* ── Export name ── */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-950/60 space-y-2">
+              <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                <FileText size={13} className="text-yellow-500"/>
+                Prefixo do arquivo
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: colecao_7_setembro"
+                value={nomeExport}
+                onChange={e => setNomeExport(e.target.value)}
+                className="w-full border border-slate-200 dark:border-slate-700 text-xs font-medium rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder:text-slate-400"
+              />
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                Vazio: usa <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">mockup__logo.jpg</code>.
+                Lote: adiciona <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">_1, _2…</code>
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* Empty properties state */
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
+            <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800/60">
+              <Settings2 size={24} className="text-slate-300 dark:text-slate-600"/>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Painel de Propriedades</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed">
+                Selecione um <span className="font-bold text-green-500">mockup</span> e um <span className="font-bold text-yellow-500">logo</span> para editar as configurações de composição.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Export buttons ── */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2.5 flex-shrink-0">
+          {/* Batch progress bar */}
+          {isBatch && (
+            <div className="mb-1">
+              <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                <span>Gerando lote…</span>
+                <span className="font-mono">{batchProgress.current}/{batchProgress.total}</span>
+              </div>
+              <div className="h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full transition-all duration-300 progress-bar-inner"
+                  style={{ width: `${batchPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Single export */}
+          <button
+            onClick={baixarImagemUnica}
+            disabled={loadingSingle || !hasSelection}
+            className="w-full font-bold text-xs py-3 rounded-xl border-2 border-blue-100 dark:border-blue-900/40 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-400 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            {loadingSingle ? <RefreshCw size={14} className="animate-spin"/> : <FileImage size={14}/>}
+            EXPORTAR FOTO ATUAL
+          </button>
+
+          {/* Batch export */}
+          <button
+            onClick={gerarLote}
+            disabled={isBatch || !estampaSel || fundoPaths.length === 0}
+            className="w-full font-black text-xs uppercase tracking-wider py-3.5 rounded-xl shadow-[0_0_20px_rgba(0,156,59,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:translate-y-0 disabled:shadow-none flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white border border-green-700/30"
+          >
+            {isBatch
+              ? <><RefreshCw size={15} className="animate-spin"/> {batchPct}%</>
+              : <><Download size={15}/> GERAR LOTE ({fundoPaths.length})</>
+            }
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }

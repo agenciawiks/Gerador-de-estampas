@@ -1,69 +1,65 @@
-# 👕 Generator Pro - Mockup Studio Web
+# 👕 Camisetas Opressoras - Gerador de Mockups
 
+[![Live Link](https://img.shields.io/badge/Acesse_Online-gerador--de--estampas.vercel.app-009C3B?style=for-the-badge&logoColor=FFDF00)](https://gerador-de-estampas.vercel.app)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Vercel](https://img.shields.io/badge/vercel-%23000000.svg?style=for-the-badge&logo=vercel&logoColor=white)
+![TailwindCSS v4](https://img.shields.io/badge/tailwindcss_v4-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-Uma aplicação web profissional e **100% Client-Side** para criação de mockups de produtos (camisetas, brindes, etc) com geração de arquivos em lote. O sistema processa tudo diretamente no navegador do usuário, garantindo privacidade, velocidade e custo zero de servidor.
+Uma ferramenta profissional de **Mockup Studio** 100% client-side desenvolvida para a **Camisetas Opressoras**. Componha suas estampas, ajuste cores e gere arquivos em lote em segundos, tudo diretamente no seu navegador.
+
+---
+
+## 🔥 Novas Melhorias (V2)
+
+Recentemente o sistema passou por uma modernização completa de design e UX de nível sênior:
+
+*   **🎨 Paleta Temática Brasil:** 12 cores selecionadas focadas na identidade visual da marca (Verde Brasil, Amarelo Ouro, Azul Marinho, Verde Militar, etc).
+*   **🔔 Sistema de Toasts:** Notificações flutuantes animadas substituem alertas nativos, proporcionando uma experiência fluida.
+*   **🖱️ Drag & Drop Global:** Arraste mockups e logos de qualquer lugar para a barra lateral para fazer o upload instantâneo.
+*   **📈 Barra de Progresso Real:** Visualização em tempo real da geração de lotes (processamento de ZIP).
+*   **🌑 Modo Escuro Premium:** Interface otimizada para baixo cansaço visual com identidade visual forte.
+*   **⚡ Arquitetura CSS Modernizada:** Substituição de variáveis JS por CSS Custom Properties (limpando o código e melhorando a manutenção).
 
 ---
 
 ## ✨ Funcionalidades Principais
 
-*   **⚡ Processamento Local (Zero Server):** A manipulação de imagens, troca de cores e geração de arquivos ocorre inteiramente via HTML5 Canvas no navegador.
-*   **🖱️ Editor Interativo:** Arraste e solte (Drag & Drop) as estampas sobre os mockups com precisão cirúrgica.
-*   **🎨 Colorização Inteligente (Tint):** Altere a cor de logos PNG monocromáticos em tempo real usando seletores HEX ou paletas pré-definidas.
-*   **💾 Persistência Local:** Utiliza **IndexedDB** (via LocalForage) para salvar seus uploads de mockups e logos. Seus arquivos permanecem salvos mesmo após fechar o navegador.
-*   **📦 Exportação em Lote:** Selecione múltiplos fundos e gere todas as combinações de uma só vez. O sistema cria um arquivo `.zip` processado localmente com JSZip.
-*   **🧠 Memória de Configuração:** O sistema lembra a posição, escala e cor personalizada para cada estampa e fundo individualmente.
-*   **🌑 Design Premium:** Interface moderna, intuitiva e em Dark Mode construída com TailwindCSS.
+*   **⚡ Processamento Local (Zero Server):** A manipulação de imagens, troca de cores e geração de arquivos ocorre inteiramente via HTML5 Canvas.
+*   **🖱️ Editor Interativo:** Posicione e dimensione estampas sobre os mockups com precisão numérica ou manual.
+*   **🎨 Colorização Inteligente (Tint):** Altere a cor de logos PNG monocromáticos em tempo real.
+*   **💾 Persistência com IndexedDB:** Seus uploads permanecem salvos localmente mesmo após fechar o navegador.
+*   **📦 Exportação em ZIP:** Gere todas as variações de uma só vez e baixe um pacote organizado.
 
 ---
 
 ## 🚀 Como Rodar Localmente
 
-Certifique-se de ter o [Node.js](https://nodejs.org/) instalado em sua máquina.
+Certifique-se de ter o [Node.js](https://nodejs.org/) instalado.
 
-1.  **Acesse a pasta do projeto:**
+1.  **Instale as dependências:**
     ```bash
     cd frontend
-    ```
-
-2.  **Instale as dependências:**
-    ```bash
     npm install
     ```
 
-3.  **Inicie o servidor de desenvolvimento:**
+2.  **Inicie o servidor de desenvolvimento:**
     ```bash
     npm run dev
     ```
-    O sistema estará disponível em `http://localhost:5173`.
-
----
-
-## ☁️ Deploy na Vercel
-
-Este projeto foi otimizado para a **Vercel**. Como não possui backend (API), o custo de hospedagem é **zero** no plano hobby.
-
-1.  Conecte seu repositório GitHub à Vercel.
-2.  No painel da Vercel, selecione o projeto.
-3.  Configure o **Framework Preset** como `Vite`.
-4.  O diretório de saída será `dist`.
-5.  Clique em **Deploy** e pronto!
+    Disponível em `http://localhost:5173`.
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-*   [React](https://reactjs.org/) - Framework UI.
-*   [Vite](https://vitejs.dev/) - Tooling de build ultra-rápido.
-*   [Tailwind CSS](https://tailwindcss.com/) - Estilização moderna.
-*   [LocalForage](https://localforage.github.io/localforage/) - Gerenciamento de IndexedDB.
-*   [JSZip](https://stuk.github.io/jszip/) e [FileSaver](https://github.com/eligrey/FileSaver.js/) - Geração e download de arquivos ZIP.
-*   [React Draggable](https://github.com/react-grid-layout/react-draggable) - Sistema de movimentação de elementos.
-*   [Lucide React](https://lucide.dev/) - Pacote de ícones.
+*   **React 19** - UI Reativa.
+*   **Vite 8** - Bundler de alta performance.
+*   **Tailwind CSS 4** - Estilização moderna.
+*   **LocalForage** - Abstração de IndexedDB.
+*   **JSZip** - Compressão de arquivos client-side.
+*   **React Draggable** - Interatividade de arrastar.
+*   **Lucide React** - Ícones premium.
 
 ---
-*Desenvolvido para facilitar a criação de produtos personalizados de forma rápida e segura.*
+*Ferramenta oficial de workflow da Camisetas Opressoras.*
+*Online em: [gerador-de-estampas.vercel.app](https://gerador-de-estampas.vercel.app)*
