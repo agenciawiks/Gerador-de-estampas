@@ -637,7 +637,7 @@ function App() {
               className={`w-full border text-sm font-medium rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm ${inputBg}`}
             />
             <p className={`text-[10px] mt-2 font-medium leading-tight ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-              Vazio = Usará o nome puro `<mockup> + <logo>`. No lote ZIP, adicionaremos a trilha _1, _2...
+              Vazio = Usará o nome puro `&lt;mockup&gt; + &lt;logo&gt;`. No lote ZIP, adicionaremos a trilha _1, _2...
             </p>
           </div>
   
