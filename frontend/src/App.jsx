@@ -7,8 +7,10 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   Image as ImageIcon, Shirt, Download, Settings2, Palette, Layers,
   CheckCircle2, Trash2, Upload, RefreshCw, FileText, FileImage,
-  Sun, Moon, Zap, ChevronRight, Focus, AlertCircle, CheckCircle,
-  X, Info, ImagePlus, MousePointer2, Crosshair,
+  Sun, Moon, Zap, ChevronRight, AlertCircle, CheckCircle,
+  X, Info, ImagePlus, MousePointer2, Crosshair, Search, Copy,
+  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Eraser, Keyboard,
+  AlertTriangle
 } from 'lucide-react';
 import './App.css';
 
@@ -35,6 +37,44 @@ function ToastContainer({ toasts, dismiss }) {
           <button className="toast-close" onClick={() => dismiss(t.id)}><X size={13}/></button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Confirm Modal ───────────────────────────────────────────────────────────
+function ConfirmModal({ isOpen, title, message, danger, onConfirm, onCancel }) {
+  if (!isOpen) return null;
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-4">
+          <div className={`p-2 rounded-xl shrink-0 ${danger ? 'bg-red-500/15 text-red-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
+            <AlertTriangle size={18}/>
+          </div>
+          <div className="min-w-0">
+            <p className="font-black text-sm text-slate-100 dark:text-slate-100 leading-tight" style={{color:'inherit'}}>{title}</p>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{message}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+              danger
+                ? 'bg-red-600 hover:bg-red-500 text-white'
+                : 'bg-yellow-500 hover:bg-yellow-400 text-black'
+            }`}
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -69,9 +109,12 @@ function App() {
   const [naturalSize,   setNaturalSize]   = useState({ w: 0, h: 0 });
   const [canvasScale,   setCanvasScale]   = useState(1);
   const [abaAtual,      setAbaAtual]      = useState('fundos');
-  const [batchProgress, setBatchProgress] = useState(null); // { current, total }
+  const [batchProgress, setBatchProgress] = useState(null); // { current, total, name }
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [isDragOver,    setIsDragOver]    = useState(false);
+  const [busca,         setBusca]         = useState('');
+  const [confirmModal,  setConfirmModal]  = useState(null); // { title, message, danger, onConfirm }
+  const [showKbdHints,  setShowKbdHints]  = useState(false);
 
   const fundoContainerRef = useRef(null);
   const nodeRef           = useRef(null);
@@ -101,6 +144,41 @@ function App() {
     }));
   };
 
+  // ── Keyboard Controls ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!estampaSel || document.activeElement.tagName === 'INPUT') return;
+      
+      // Move controls
+      const stepPos = e.shiftKey ? 10 : 1;
+      let newX = posX;
+      let newY = posY;
+
+      if (e.key === 'ArrowUp')    { e.preventDefault(); newY -= stepPos; }
+      if (e.key === 'ArrowDown')  { e.preventDefault(); newY += stepPos; }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); newX -= stepPos; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); newX += stepPos; }
+
+      if (newX !== posX || newY !== posY) {
+        setEstampaConfig(estampaSel.id, 'posX', Math.max(0, newX));
+        setEstampaConfig(estampaSel.id, 'posY', Math.max(0, newY));
+      }
+
+      // Scale controls (+ and -)
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        setEstampaConfig(estampaSel.id, 'escala', Math.min(500, escala + (e.shiftKey ? 10 : 1)));
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        setEstampaConfig(estampaSel.id, 'escala', Math.max(5, escala - (e.shiftKey ? 10 : 1)));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [estampaSel, posX, posY, escala]);
+
   // ── Load DB ───────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -122,6 +200,18 @@ function App() {
     setIsDarkMode(v);
     localforage.setItem('db_theme_mode', v);
   };
+
+  // ── Prevent close during batch ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (batchProgress !== null) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [batchProgress]);
 
   // ── Natural size of stamp ─────────────────────────────────────────────────
   useEffect(() => {
@@ -177,7 +267,6 @@ function App() {
   const handleDragLeave  = ()  => setIsDragOver(false);
   const handleDrop       = e  => { e.preventDefault(); setIsDragOver(false); processFiles(e.dataTransfer.files); };
 
-  // ── Remove item ───────────────────────────────────────────────────────────
   const removerItemDb = async (id, isFundo) => {
     if (isFundo) {
       const list = fundos.filter(f => f.id !== id);
@@ -192,6 +281,30 @@ function App() {
       if (estampaSel?.id === id) setEstampaSel(list[0] || null);
     }
     toast('Item removido.', 'warning');
+  };
+
+  const limparTudo = (isFundo) => {
+    const listName = isFundo ? 'Todos os Mockups' : 'Todos os Logos';
+    const msg = isFundo ? 'Todos os mockups foram removidos.' : 'Todos os logos foram removidos.';
+    setConfirmModal({
+      title: `Limpar ${listName}?`,
+      message: `Esta ação é irreversível. Os arquivos serão removidos permanentemente da biblioteca.`,
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        if (isFundo) {
+          setFundos([]);
+          setFundoPaths([]);
+          setFundoPreview(null);
+          await localforage.setItem('db_fundos', []);
+        } else {
+          setEstampas([]);
+          setEstampaSel(null);
+          await localforage.setItem('db_estampas', []);
+        }
+        toast(msg, 'error');
+      },
+    });
   };
 
   const toggleFundoPath = (id, item) => {
@@ -291,13 +404,13 @@ function App() {
         const eConf = estampaConfigs[estampaSel.id] || { posX: 0, posY: 0, escala: 100 };
         const blob  = await gerarImagemFinal(fItem, estampaSel, { ...eConf, ...fConf });
         if (blob) {
-          const fname = nomeExport.trim()
+        const fname = nomeExport.trim()
             ? `${nomeExport}_${i + 1}.jpg`
             : `${fItem.nome.replace(/\.[^/.]+$/, '')}__${estampaSel.nome.replace(/\.[^/.]+$/, '')}.jpg`;
           zip.file(fname, blob);
           hasFiles = true;
         }
-        setBatchProgress({ current: i + 1, total: fundoPaths.length });
+        setBatchProgress({ current: i + 1, total: fundoPaths.length, name: fundos.find(f => f.id === fundoPaths[i])?.nome || '...' });
       }
       if (hasFiles) {
         const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -317,6 +430,10 @@ function App() {
   const batchPct    = isBatch ? Math.round((batchProgress.current / batchProgress.total) * 100) : 0;
   const hasSelection = !!fundoPreview && !!estampaSel;
 
+  const itensFiltrados = (abaAtual === 'fundos' ? fundos : estampas).filter(i => 
+    i.nome.toLowerCase().includes(busca.toLowerCase())
+  );
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div
@@ -325,10 +442,18 @@ function App() {
       style={{ fontFamily: "'Inter', sans-serif" }}
     >
       <ToastContainer toasts={toasts} dismiss={dismiss} />
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        danger={confirmModal?.danger}
+        onConfirm={confirmModal?.onConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
 
       {/* ══════════════ SIDEBAR LEFT ══════════════ */}
       <aside
-        className={`w-72 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-xl flex-shrink-0 transition-all ${isDragOver ? 'drag-active' : ''}`}
+        className={`w-72 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-xl shrink-0 transition-all ${isDragOver ? 'drag-active' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -348,7 +473,7 @@ function App() {
             <button
               onClick={toggleTheme}
               title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
-              className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-yellow-400 border border-slate-200 dark:border-slate-700 transition-all flex-shrink-0 shadow-sm"
+              className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-yellow-400 border border-slate-200 dark:border-slate-700 transition-all shrink-0 shadow-sm"
             >
               {isDarkMode ? <Sun size={13}/> : <Moon size={13}/>}
             </button>
@@ -393,10 +518,62 @@ function App() {
           <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload}/>
         </div>
 
+        {/* ── Search & Actions ── */}
+        <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 space-y-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+            <input 
+              type="text" 
+              placeholder={`Buscar ${abaAtual === 'fundos' ? 'mockup' : 'logo'}...`}
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="w-full pl-9 pr-8 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            {busca && (
+              <button 
+                onClick={() => setBusca('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                title="Limpar busca"
+              >
+                <X size={12}/>
+              </button>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5 px-1">
+             <div className="flex justify-between items-center">
+               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                 {itensFiltrados.length} resultados
+               </span>
+               <button 
+                 onClick={() => limparTudo(abaAtual === 'fundos')}
+                 className="text-[10px] font-bold text-red-500 hover:text-red-600 dark:text-red-400/70 dark:hover:text-red-400 flex items-center gap-1 transition-colors"
+               >
+                 <Eraser size={11}/> {abaAtual === 'fundos' ? 'Limpar Mockups' : 'Limpar Logos'}
+               </button>
+             </div>
+             {abaAtual === 'fundos' && fundos.length > 0 && (
+               <div className="flex gap-2">
+                 <button 
+                  onClick={() => { setFundoPaths(fundos.map(f => f.id)); if (fundos.length > 0) setFundoPreview(fundos[0]); }}
+                  className="flex-1 text-[9px] font-bold uppercase py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                 >
+                   Selecionar Todos
+                 </button>
+                 <button 
+                  onClick={() => setFundoPaths([])}
+                  className="flex-1 text-[9px] font-bold uppercase py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                 >
+                   Desmarcar
+                 </button>
+               </div>
+             )}
+          </div>
+        </div>
+
         {/* ── List ── */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/80 dark:bg-[#020617]">
           {/* Mockups list */}
-          {abaAtual === 'fundos' && fundos.map(item => {
+          {abaAtual === 'fundos' && itensFiltrados.map(item => {
             const selected = fundoPaths.includes(item.id);
             return (
               <div
@@ -408,17 +585,17 @@ function App() {
                     : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-green-300 dark:hover:border-green-800'
                 }`}
               >
-                <img src={item.dataUrl} alt={item.nome} className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 flex-shrink-0"/>
+                <img src={item.dataUrl} alt={item.nome} className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0"/>
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
                   {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
                     <div className="flex items-center gap-1 mt-1">
-                      <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 flex-shrink-0" style={{ backgroundColor: fundoConfigs[item.id].corHex }}/>
+                      <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 shrink-0" style={{ backgroundColor: fundoConfigs[item.id].corHex }}/>
                       <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase">{fundoConfigs[item.id].corHex}</span>
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                <div className="flex flex-col items-center gap-1 shrink-0">
                   {selected && <CheckCircle2 size={15} className="text-green-500"/>}
                   <button
                     onClick={e => { e.stopPropagation(); removerItemDb(item.id, true); }}
@@ -433,7 +610,7 @@ function App() {
           })}
 
           {/* Logos list */}
-          {abaAtual === 'estampas' && estampas.map(item => {
+          {abaAtual === 'estampas' && itensFiltrados.map(item => {
             const selected = estampaSel?.id === item.id;
             return (
               <div
@@ -445,7 +622,7 @@ function App() {
                     : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-yellow-300 dark:hover:border-yellow-800'
                 }`}
               >
-                <div className="w-14 h-14 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 flex-shrink-0">
+                <div className="w-14 h-14 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 shrink-0">
                   <img src={item.dataUrl} alt={item.nome} className="max-w-full max-h-full object-contain drop-shadow-sm"/>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -454,7 +631,7 @@ function App() {
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); removerItemDb(item.id, false); }}
-                  className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 shrink-0"
                   title="Remover"
                 >
                   <Trash2 size={13}/>
@@ -491,7 +668,7 @@ function App() {
         />
 
         {/* Top info bar */}
-        <div className="relative z-10 h-11 border-b border-slate-200 dark:border-slate-800 flex items-center px-5 gap-3 bg-white dark:bg-slate-900 shadow-sm flex-shrink-0">
+        <div className="relative z-10 h-11 border-b border-slate-200 dark:border-slate-800 flex items-center px-5 gap-3 bg-white dark:bg-slate-900 shadow-sm shrink-0">
           {fundoPreview ? (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 truncate max-w-[200px]">
               {fundoPreview.nome}
@@ -499,18 +676,31 @@ function App() {
           ) : (
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Nenhum mockup ativo</span>
           )}
-          <ChevronRight size={13} className="text-slate-300 dark:text-slate-600 flex-shrink-0"/>
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex-shrink-0">
+          <ChevronRight size={13} className="text-slate-300 dark:text-slate-600 shrink-0"/>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
             {fundoPaths.length} mockup(s) no lote
           </span>
           {estampaSel && (
             <>
-              <ChevronRight size={13} className="text-slate-300 dark:text-slate-600 flex-shrink-0"/>
+              <ChevronRight size={13} className="text-slate-300 dark:text-slate-600 shrink-0"/>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 truncate max-w-[160px]">
                 {estampaSel.nome}
               </span>
             </>
           )}
+          <div className="ml-auto shrink-0">
+            <button
+              onClick={() => setShowKbdHints(v => !v)}
+              title="Atalhos de teclado"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                showKbdHints
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'
+              }`}
+            >
+              <Keyboard size={11}/> Atalhos
+            </button>
+          </div>
         </div>
 
         {/* Workspace */}
@@ -580,11 +770,38 @@ function App() {
               </div>
             </div>
           )}
+
+          {/* Keyboard shortcuts panel */}
+          {showKbdHints && (
+            <div className="absolute top-3 right-3 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-4 w-64">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Atalhos de Teclado</span>
+                <button onClick={() => setShowKbdHints(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={12}/></button>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { keys: ['↑','↓','←','→'], desc: 'Mover 1px' },
+                  { keys: ['⇧','↑↓←→'], desc: 'Mover 10px' },
+                  { keys: ['+','='], desc: 'Aumentar escala' },
+                  { keys: ['-'], desc: 'Diminuir escala' },
+                  { keys: ['⇧','+/-'], desc: 'Escala ±10%' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">{item.desc}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.keys.map((k, ki) => <span key={ki} className="kbd">{k}</span>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-3 leading-relaxed">Atalhos funcionam quando um campo de texto <strong>não</strong> está focado.</p>
+            </div>
+          )}
         </div>
       </main>
 
       {/* ══════════════ SIDEBAR RIGHT ══════════════ */}
-      <aside className="w-72 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col z-20 shadow-[-4px_0_20px_rgba(0,0,0,0.04)] flex-shrink-0 overflow-y-auto">
+      <aside className="w-72 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col z-20 shadow-[-4px_0_20px_rgba(0,0,0,0.04)] shrink-0 overflow-y-auto">
 
         {/* Panel header */}
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
@@ -595,9 +812,14 @@ function App() {
         {hasSelection ? (
           <div className="flex-1 p-4 space-y-4 overflow-y-auto">
             {/* Active mockup info */}
-            <div className="text-xs px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 leading-snug">
-              Editando:
-              <span className="font-bold text-blue-600 dark:text-blue-400 truncate block mt-0.5">{fundoPreview.nome}</span>
+            <div className="text-xs px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 leading-snug space-y-2">
+              <span className="block">Editando:</span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 p-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center shrink-0">
+                   <img src={estampaSel.dataUrl} className="max-w-full max-h-full object-contain" />
+                </div>
+                <span className="font-bold text-blue-600 dark:text-blue-400 truncate flex-1">{fundoPreview.nome}</span>
+              </div>
             </div>
 
             {/* ── Color fill ── */}
@@ -633,7 +855,7 @@ function App() {
                   value={corHex}
                   onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }}
                   disabled={usarCorOrig}
-                  className="w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden cursor-pointer flex-shrink-0 disabled:opacity-40"
+                  className="w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden cursor-pointer shrink-0 disabled:opacity-40"
                 />
                 <input
                   type="text"
@@ -642,6 +864,13 @@ function App() {
                   disabled={usarCorOrig}
                   className="flex-1 border border-slate-200 dark:border-slate-700 text-xs rounded-lg px-3 py-2 uppercase font-mono font-bold tracking-widest focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 disabled:opacity-40"
                 />
+                <button 
+                  onClick={() => { navigator.clipboard.writeText(corHex); toast('HEX Copiado!', 'success'); }}
+                  className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+                  title="Copiar cor"
+                >
+                  <Copy size={14}/>
+                </button>
               </div>
 
               {/* Toggle original color */}
@@ -664,21 +893,99 @@ function App() {
             {/* ── Scale & position ── */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-950/60 space-y-3">
               <div className="flex justify-between items-center">
-                <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Escala</label>
-                <span className="text-xs font-black font-mono px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">{escala}%</span>
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Escala de Logo</label>
+                <div className="flex items-center gap-1 bg-green-100 dark:bg-green-900/40 rounded px-1.5 py-0.5 border border-green-200 dark:border-green-800/50">
+                  <input 
+                    type="number"
+                    value={escala}
+                    onChange={e => estampaSel && setEstampaConfig(estampaSel.id, 'escala', Math.max(5, Math.min(500, Number(e.target.value))))}
+                    className="w-12 bg-transparent text-[13px] font-black font-mono text-center text-green-700 dark:text-green-400 focus:outline-none"
+                  />
+                  <span className="text-[11px] font-black font-mono text-green-700 dark:text-green-400">%</span>
+                </div>
               </div>
+              
+              <div className="flex gap-1">
+                {[50, 100, 150, 200].map(val => (
+                  <button
+                    key={val}
+                    onClick={() => estampaSel && setEstampaConfig(estampaSel.id, 'escala', val)}
+                    className={`flex-1 text-[10px] font-bold py-1 rounded transition-all ${
+                      escala === val 
+                        ? 'bg-green-500 text-white shadow-sm' 
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {val}%
+                  </button>
+                ))}
+              </div>
+
               <input
-                type="range" min="5" max="250" value={escala}
+                type="range" min="5" max="300" step="1" value={escala}
                 onChange={e => estampaSel && setEstampaConfig(estampaSel.id, 'escala', Number(e.target.value))}
-                className="w-full"
+                className="w-full accent-green-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none"
               />
-              <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                <div className="flex justify-between bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg">
-                  <span>X</span><span className="font-mono text-slate-700 dark:text-slate-200">{posX}px</span>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 block">Posição (px)</label>
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500"><span className="kbd">⇧</span> = ±10px</span>
                 </div>
-                <div className="flex justify-between bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg">
-                  <span>Y</span><span className="font-mono text-slate-700 dark:text-slate-200">{posY}px</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <span className="text-[10px] font-bold text-slate-400">X</span>
+                      <input
+                        type="number"
+                        value={posX}
+                        onChange={e => estampaSel && setEstampaConfig(estampaSel.id, 'posX', Number(e.target.value))}
+                        className="w-12 bg-transparent text-xs font-mono text-right font-bold focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={e => estampaSel && setEstampaConfig(estampaSel.id, 'posX', posX - (e.shiftKey ? 10 : 1))}
+                        title="-1px (Shift: -10px)"
+                        className="flex-1 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                      >−1</button>
+                      <button
+                        onClick={e => estampaSel && setEstampaConfig(estampaSel.id, 'posX', posX + (e.shiftKey ? 10 : 1))}
+                        title="+1px (Shift: +10px)"
+                        className="flex-1 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 transition-all"
+                      >+1</button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <span className="text-[10px] font-bold text-slate-400">Y</span>
+                      <input
+                        type="number"
+                        value={posY}
+                        onChange={e => estampaSel && setEstampaConfig(estampaSel.id, 'posY', Number(e.target.value))}
+                        className="w-12 bg-transparent text-xs font-mono text-right font-bold focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={e => estampaSel && setEstampaConfig(estampaSel.id, 'posY', posY - (e.shiftKey ? 10 : 1))}
+                        title="-1px (Shift: -10px)"
+                        className="flex-1 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                      >−1</button>
+                      <button
+                        onClick={e => estampaSel && setEstampaConfig(estampaSel.id, 'posY', posY + (e.shiftKey ? 10 : 1))}
+                        title="+1px (Shift: +10px)"
+                        className="flex-1 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 transition-all"
+                      >+1</button>
+                    </div>
+                  </div>
                 </div>
+                <button
+                  onClick={() => { if (estampaSel) { setEstampaConfig(estampaSel.id, 'posX', 0); setEstampaConfig(estampaSel.id, 'posY', 0); } }}
+                  className="w-full text-[9px] font-bold text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-400 uppercase tracking-tighter transition-colors flex items-center justify-center gap-1"
+                >
+                  <X size={9}/> Zerar Coordenadas
+                </button>
               </div>
               <button
                 onClick={centralizarEstampa}
@@ -723,13 +1030,13 @@ function App() {
         )}
 
         {/* ── Export buttons ── */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2.5 flex-shrink-0">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
           {/* Batch progress bar */}
           {isBatch && (
             <div className="mb-1">
-              <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
-                <span>Gerando lote…</span>
-                <span className="font-mono">{batchProgress.current}/{batchProgress.total}</span>
+              <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 overflow-hidden">
+                <span className="truncate flex-1 mr-2">{batchProgress.name || 'Gerando...'}</span>
+                <span className="font-mono shrink-0">{batchProgress.current}/{batchProgress.total}</span>
               </div>
               <div className="h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
