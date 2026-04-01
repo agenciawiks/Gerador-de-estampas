@@ -17,7 +17,11 @@ import {
   RefreshCw,
   FileText,
   FileImage,
-  Star
+  Sun,
+  Moon,
+  Zap,
+  ChevronRight,
+  Focus
 } from 'lucide-react';
 
 function App() {
@@ -27,6 +31,9 @@ function App() {
   const [fundoPaths, setFundoPaths] = useState([]); // Multiple selection for batch IDs
   const [estampaSel, setEstampaSel] = useState(null);
   const [fundoPreview, setFundoPreview] = useState(null); // Active background for canvas
+  
+  // Theme Toggle
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   // States by ID/Path
   const [estampaConfigs, setEstampaConfigs] = useState({});
@@ -78,7 +85,10 @@ function App() {
     try {
       const dbFundos = await localforage.getItem('db_fundos') || [];
       const dbEstampas = await localforage.getItem('db_estampas') || [];
+      const dbThemeMode = await localforage.getItem('db_theme_mode');
       
+      if (dbThemeMode !== null) setIsDarkMode(dbThemeMode);
+
       setFundos(dbFundos);
       setEstampas(dbEstampas);
       
@@ -97,6 +107,12 @@ function App() {
   useEffect(() => {
     loadDataFromDB();
   }, []);
+
+  const toggleTheme = () => {
+    const newVal = !isDarkMode;
+    setIsDarkMode(newVal);
+    localforage.setItem('db_theme_mode', newVal);
+  };
 
   // Update natural size when print changes
   useEffect(() => {
@@ -364,29 +380,59 @@ function App() {
   const corHex = getCorHex();
   const usarCorOriginal = getUsarCorOriginal();
 
+  // Cores dinâmicas Dark/Light mode
+  const bgMain = isDarkMode ? "bg-slate-950 text-slate-200" : "bg-slate-50 text-slate-900";
+  const bgSidebar = isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200";
+  const bgHeader = isDarkMode ? "bg-slate-900" : "bg-slate-50";
+  const bgTabActive1 = isDarkMode ? "border-green-500 text-green-400 bg-slate-800/50" : "border-green-600 text-green-800 bg-slate-50";
+  const bgTabActive2 = isDarkMode ? "border-yellow-500 text-yellow-400 bg-slate-800/50" : "border-yellow-500 text-yellow-700 bg-slate-50";
+  const bgTabIdle = isDarkMode ? "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50" : "text-slate-500 hover:text-green-700 hover:bg-slate-50";
+  const borderList = isDarkMode ? "border-slate-800" : "border-slate-200";
+  const listBgIdle = isDarkMode ? "bg-slate-800/30 border-transparent hover:border-slate-700" : "bg-white border-slate-200 hover:border-green-300";
+  const listBgInner = isDarkMode ? "bg-slate-900 border-slate-800" : "bg-slate-100 border-slate-200";
+  const textInfo = isDarkMode ? "text-slate-300" : "text-slate-700";
+  const inputBg = isDarkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800";
+  const btnSecondary = isDarkMode ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300" : "bg-white hover:bg-slate-50 text-blue-700 border-blue-100";
+  const panelTitle = isDarkMode ? "text-slate-400" : "text-slate-500";
+  const iconMuted = isDarkMode ? "text-slate-500" : "text-slate-400";
+  const trashBtn = isDarkMode ? "text-slate-600 hover:text-red-400 hover:bg-red-400/10" : "text-slate-400 hover:text-red-500 hover:bg-red-50";
+  const uploadBtn = isDarkMode ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-300" : "bg-white hover:bg-slate-50 border-slate-300 text-slate-600";
+
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className={`flex h-screen font-sans transition-colors duration-200 ${bgMain}`}>
       
       {/* SIDEBAR LEFT */}
-      <div className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-20">
-        <div className="p-5 border-b border-slate-200 flex flex-col justify-center items-center bg-slate-50">
-          <h1 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-green-700">
-            <Star size={20} className="text-yellow-500 fill-current"/>
-            Loja Auriverde
+      <div className={`w-80 border-r flex flex-col shadow-xl z-20 transition-colors duration-200 ${bgSidebar}`}>
+        <div className={`p-5 border-b flex flex-col justify-center items-center transition-colors duration-200 ${bgHeader} ${borderList} relative`}>
+          {/* Título Principal - Marca Opressora */}
+          <h1 className="text-xl font-black uppercase tracking-wider flex items-center gap-2 text-green-700">
+            <Zap size={22} className="text-yellow-500 fill-current"/>
+            CAMISETAS OPRESSORA
           </h1>
-          <p className="text-[10px] uppercase font-bold text-slate-400 mt-1 tracking-widest">Mockup Studio Oficial</p>
+          <p className={`text-[10px] uppercase font-bold mt-1 tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+            MOCKUP STUDIO OFICIAL
+          </p>
+          
+          {/* Botão de Toggle DarkMode */}
+          <button 
+            onClick={toggleTheme} 
+            className={`absolute right-4 top-4 p-2 rounded-full transition-colors ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-yellow-400' : 'bg-white hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200'} `}
+            title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+          >
+            {isDarkMode ? <Sun size={14}/> : <Moon size={14}/>}
+          </button>
         </div>
         
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 bg-white">
+        <div className={`flex border-b transition-colors duration-200 ${bgSidebar}`}>
           <button 
-            className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 ${abaAtual === 'fundos' ? 'border-b-4 border-green-600 text-green-800 bg-slate-50' : 'text-slate-500 hover:text-green-700 hover:bg-slate-50'}`}
+            className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${abaAtual === 'fundos' ? `border-b-4 ${bgTabActive1}` : bgTabIdle}`}
             onClick={() => setAbaAtual('fundos')}
           >
             <Shirt size={16}/> MOCKUPS ({fundos.length})
           </button>
           <button 
-            className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 ${abaAtual === 'estampas' ? 'border-b-4 border-yellow-500 text-yellow-700 bg-slate-50' : 'text-slate-500 hover:text-yellow-600 hover:bg-slate-50'}`}
+            className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${abaAtual === 'estampas' ? `border-b-4 ${bgTabActive2}` : bgTabIdle}`}
             onClick={() => setAbaAtual('estampas')}
           >
             <ImageIcon size={16}/> LOGOS ({estampas.length})
@@ -394,12 +440,12 @@ function App() {
         </div>
 
         {/* Upload Button */}
-        <div className="px-4 py-4 border-b border-slate-200 bg-white shadow-sm z-10">
+        <div className={`px-4 py-4 border-b transition-colors duration-200 shadow-sm z-10 ${bgSidebar}`}>
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-slate-50 transition rounded-lg border-2 border-dashed border-slate-300 text-sm font-bold text-slate-600 uppercase"
+              className={`w-full flex items-center justify-center gap-2 py-3 transition rounded-lg border-2 border-dashed font-bold uppercase ${uploadBtn}`}
             >
-              <Upload size={18} className="text-blue-600"/> Enviar Imagens
+              <Upload size={18} className={isDarkMode ? "text-green-400" : "text-blue-600"}/> <span>Enviar Imagens</span>
             </button>
             <input 
               type="file" multiple accept="image/*" 
@@ -409,61 +455,61 @@ function App() {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+        <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${isDarkMode ? 'bg-[#0f172a]' : 'bg-slate-50/50'}`}>
           {abaAtual === 'fundos' && fundos.map(item => (
             <div 
               key={item.id} 
-              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative overflow-hidden group bg-white shadow-sm ${fundoPaths.includes(item.id) ? 'border-green-500 ring-2 ring-green-100' : 'border-slate-200 hover:border-green-300'}`}
+              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative overflow-hidden group shadow-sm ${fundoPaths.includes(item.id) ? `border-green-500 ring-2 ${isDarkMode?'ring-green-900/50 bg-green-900/20':'ring-green-100'}` : listBgIdle}`}
             >
-               <img src={item.dataUrl} onClick={() => toggleFundoPath(item.id, item)} className="w-16 h-16 object-cover cursor-pointer rounded-lg bg-slate-100 border border-slate-200" />
-               <div className="flex-1 truncate text-sm font-bold text-slate-700 flex flex-col cursor-pointer" onClick={() => toggleFundoPath(item.id, item)}>
+               <img src={item.dataUrl} onClick={() => toggleFundoPath(item.id, item)} className={`w-16 h-16 object-cover cursor-pointer rounded-lg border ${listBgInner}`} />
+               <div className={`flex-1 truncate text-sm font-bold flex flex-col cursor-pointer ${textInfo}`} onClick={() => toggleFundoPath(item.id, item)}>
                  <span className="truncate">{item.nome}</span>
                  {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
                     <div className="flex items-center gap-1 mt-1">
-                      <div className="w-4 h-4 rounded-full border border-slate-300 shadow-sm" style={{backgroundColor: fundoConfigs[item.id].corHex}}></div>
-                      <span className="text-xs text-slate-500 font-medium truncate uppercase">{fundoConfigs[item.id].corHex}</span>
+                      <div className={`w-4 h-4 rounded-full border shadow-sm ${borderList}`} style={{backgroundColor: fundoConfigs[item.id].corHex}}></div>
+                      <span className={`text-xs font-medium truncate uppercase ${isDarkMode?'text-slate-400':'text-slate-500'}`}>{fundoConfigs[item.id].corHex}</span>
                     </div>
                  )}
                </div>
-               <button className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition" onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, true); }}><Trash2 size={18}/></button>
-               {fundoPaths.includes(item.id) && <CheckCircle2 size={20} className="text-green-600 absolute top-2 right-2 pointer-events-none drop-shadow-sm bg-white rounded-full"/>}
+               <button className={`p-2 rounded-lg transition ${trashBtn}`} onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, true); }}><Trash2 size={18}/></button>
+               {fundoPaths.includes(item.id) && <CheckCircle2 size={20} className={`absolute top-2 right-2 pointer-events-none drop-shadow-sm rounded-full ${isDarkMode?'text-green-400 bg-slate-900':'text-green-600 bg-white'}`}/>}
             </div>
           ))}
 
           {abaAtual === 'estampas' && estampas.map(item => (
             <div 
               key={item.id} 
-              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative bg-white shadow-sm ${estampaSel?.id === item.id ? 'border-yellow-500 ring-2 ring-yellow-100' : 'border-slate-200 hover:border-yellow-300'}`}
+              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative shadow-sm ${estampaSel?.id === item.id ? `border-yellow-500 ring-2 ${isDarkMode?'ring-yellow-900/50 bg-yellow-900/10':'ring-yellow-100'}` : listBgIdle}`}
             >
-               <div className="w-16 h-16 p-2 rounded-lg bg-slate-100 cursor-pointer flex items-center justify-center relative overflow-hidden border border-slate-200" onClick={() => setEstampaSel(item)}>
+               <div className={`w-16 h-16 p-2 rounded-lg cursor-pointer flex items-center justify-center relative overflow-hidden border ${listBgInner}`} onClick={() => setEstampaSel(item)}>
                  <img src={item.dataUrl} className="max-w-full max-h-full object-contain drop-shadow-sm" />
                </div>
-               <div className="flex-1 cursor-pointer truncate text-sm font-bold text-slate-700" onClick={() => setEstampaSel(item)}>{item.nome}</div>
-               <button className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition" onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, false); }}><Trash2 size={18}/></button>
+               <div className={`flex-1 cursor-pointer truncate text-sm font-bold ${textInfo}`} onClick={() => setEstampaSel(item)}>{item.nome}</div>
+               <button className={`p-2 rounded-lg transition ${trashBtn}`} onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, false); }}><Trash2 size={18}/></button>
             </div>
           ))}
           
           {(abaAtual === 'fundos' ? fundos : estampas).length === 0 && (
-              <div className="text-center text-sm font-medium text-slate-500 mt-10 p-6 bg-white border border-slate-200 border-dashed rounded-xl">Nenhuma arte na memória.<br/>Faça seu upload acima.</div>
+              <div className={`text-center text-sm font-medium mt-10 p-6 border border-dashed rounded-xl ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-500'}`}>Nenhuma arte na memória.<br/>Faça seu upload na nuvem.</div>
           )}
         </div>
       </div>
 
       {/* CANVAS MIDDLE */}
-      <div className="flex-1 flex flex-col relative overflow-hidden bg-slate-100">
-        <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+      <div className={`flex-1 flex flex-col relative overflow-hidden transition-colors duration-200 ${isDarkMode ? 'bg-[#0f172a]' : 'bg-slate-100'}`}>
+        <div className={`absolute inset-0 opacity-5 pointer-events-none ${isDarkMode?'invert':''}`} style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
         {/* Top bar */}
-        <div className="h-14 border-b border-slate-200 flex items-center px-6 justify-between bg-white z-10 shadow-sm relative">
-           <div className="text-sm font-bold text-slate-500 flex items-center">
-             {fundoPreview && <span className="mr-4 text-green-800 border-2 border-green-200 bg-green-50 px-3 py-1 rounded-full">{fundoPreview.nome}</span>}
-             <span className="text-blue-600">{fundoPaths.length} Fundos marcados</span>
+        <div className={`h-14 border-b flex items-center px-6 justify-between z-10 shadow-sm relative transition-colors duration-200 ${bgSidebar}`}>
+           <div className={`text-sm font-bold flex items-center ${isDarkMode?'text-slate-400':'text-slate-500'}`}>
+             {fundoPreview && <span className={`mr-4 border-2 px-3 py-1 rounded-full ${isDarkMode ? 'text-green-400 border-green-900 bg-green-900/20' : 'text-green-800 border-green-200 bg-green-50'}`}>{fundoPreview.nome}</span>}
+             <span className={isDarkMode ? 'text-blue-400' : 'text-blue-600'}> <ChevronRight size={16} className="inline mr-1" />{fundoPaths.length} Mockups selecionados para produção</span>
            </div>
         </div>
         
         {/* Workspace */}
         <div className="flex-1 flex items-center justify-center p-8 overflow-auto relative z-0" ref={fundoContainerRef}>
           {fundoUrl && estampaUrl ? (
-            <div className="relative shadow-2xl bg-white aspect-auto rounded-md overflow-hidden ring-1 ring-slate-900/5" style={{
+            <div className={`relative shadow-2xl aspect-auto rounded-md overflow-hidden ring-1 ${isDarkMode ? 'bg-black ring-slate-800 shadow-emerald-900/20' : 'bg-white ring-slate-900/5'}`} style={{
                 transform: `scale(${canvasScale})`,
                 transformOrigin: 'center center',
             }}>
@@ -503,16 +549,16 @@ function App() {
                     <img src={estampaUrl} className={`w-full h-full object-contain pointer-events-none drop-shadow-md ${!usarCorOriginal ? 'opacity-10 grayscale' : ''}`} />
                     
                     {/* Position Tooltip */}
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 font-bold text-white text-xs px-3 py-1.5 rounded shadow-xl opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 transition-all scale-95 group-hover:scale-100">
+                    <div className={`absolute -bottom-8 left-1/2 -translate-x-1/2 font-bold text-xs px-3 py-1.5 rounded shadow-xl opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 transition-all scale-95 group-hover:scale-100 ${isDarkMode?'bg-slate-200 text-slate-900 border border-slate-300':'bg-slate-900 text-white'}`}>
                       X: {posX} • Y: {posY}
                     </div>
                  </div>
                </Draggable>
             </div>
           ) : (
-            <div className="text-slate-400 flex flex-col items-center gap-4 bg-white p-12 rounded-2xl shadow-sm border border-slate-200">
-               <Shirt size={64} className="opacity-20 text-slate-800"/>
-               <p className="font-bold text-slate-500">Faça upload e marque artes para iniciar.</p>
+            <div className={`flex flex-col items-center gap-4 p-12 rounded-2xl shadow-sm border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-500' : 'bg-white border-slate-200 text-slate-400'}`}>
+               <Layers size={64} className={`opacity-20 ${isDarkMode ? 'text-slate-400' : 'text-slate-800'}`}/>
+               <p className={`font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Carregue suas artes para moldar sua coleção.</p>
             </div>
           )}
         </div>
@@ -520,19 +566,19 @@ function App() {
 
       {/* SIDEBAR RIGHT (Properties) */}
       {fundoPreview && estampaSel && (
-        <div className="w-80 bg-white border-l border-slate-200 flex flex-col z-20 shadow-[-4px_0_15px_rgba(0,0,0,0.03)] p-5 overflow-y-auto">
-          <h2 className="text-xs uppercase tracking-widest text-slate-500 font-black flex items-center gap-2 mb-4">
-            <Settings2 size={16}/> Configurações
+        <div className={`w-80 border-l flex flex-col z-20 shadow-[-4px_0_15px_rgba(0,0,0,0.03)] p-5 overflow-y-auto transition-colors duration-200 ${bgSidebar}`}>
+          <h2 className={`text-xs uppercase tracking-widest font-black flex items-center gap-2 mb-4 ${panelTitle}`}>
+            <Settings2 size={16}/> Configurações Visuais
           </h2>
           
-          <div className="mb-6 text-xs text-slate-600 px-3 py-3 bg-slate-50 rounded-lg border border-slate-200 leading-tight">
-            As alterações visuais modificam a estampa no mockup: <span className="text-blue-600 font-bold max-w-full truncate block mt-1">{fundoPreview.nome}</span>
+          <div className={`mb-6 text-xs px-3 py-3 rounded-lg border leading-tight ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+            As alterações modificam a estampa base no mockup: <span className={`font-bold max-w-full truncate block mt-1 ${isDarkMode?'text-blue-400':'text-blue-600'}`}>{fundoPreview.nome}</span>
           </div>
 
           {/* Colors */}
-          <div className="mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-             <label className="text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2 text-slate-700">
-               <Palette size={14} className="text-green-600"/> Preenchimento Exato
+          <div className={`mb-6 border rounded-xl p-4 shadow-sm ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
+             <label className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2 ${textInfo}`}>
+               <Palette size={14} className={isDarkMode ? 'text-green-400' : 'text-green-600'}/> Preenchimento Hex
              </label>
              
              <div className="grid grid-cols-6 gap-2 mb-4">
@@ -540,31 +586,31 @@ function App() {
                  <button 
                    key={c} 
                    onClick={() => { setFundoConfig('corHex', c); setFundoConfig('usarCorOriginal', false); }}
-                   className={`w-full aspect-square rounded-full border-2 transition-transform hover:scale-110 shadow-sm ${corHex === c && !usarCorOriginal ? 'border-green-500 scale-110 ring-2 ring-green-100' : 'border-slate-300'}`}
+                   className={`w-full aspect-square rounded-full border-2 transition-transform hover:scale-110 shadow-sm ${corHex === c && !usarCorOriginal ? `border-green-500 scale-110 ring-2 ${isDarkMode?'ring-green-900/50':'ring-green-100'}` : (isDarkMode?'border-slate-700':'border-slate-300')}`}
                    style={{ backgroundColor: c }}
                  />
                ))}
              </div>
              
              <div className="flex items-center gap-3">
-               <input type="color" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className="w-10 h-10 rounded border border-slate-300 overflow-hidden cursor-pointer shrink-0" />
-               <input type="text" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className="bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 uppercase flex-1 font-mono font-bold tracking-widest text-slate-700 disabled:opacity-50 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all" />
+               <input type="color" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className={`w-10 h-10 rounded border overflow-hidden cursor-pointer shrink-0 ${isDarkMode?'border-slate-700 bg-slate-800':'border-slate-300'}`} />
+               <input type="text" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className={`border text-sm rounded-lg px-3 py-2 uppercase flex-1 font-mono font-bold tracking-widest disabled:opacity-50 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all ${inputBg}`} />
              </div>
              
              <label className="flex items-center gap-2 mt-4 cursor-pointer group">
                <div className="relative flex items-center">
                    <input type="checkbox" checked={usarCorOriginal} onChange={e => setFundoConfig('usarCorOriginal', e.target.checked)} className="peer sr-only" />
-                   <div className="w-10 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                   <div className={`w-10 h-6 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 ${isDarkMode ? 'bg-slate-700 after:border-slate-600' : 'bg-slate-300 after:border-slate-300'}`}></div>
                </div>
-               <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">Usar cor original da arte</span>
+               <span className={`text-sm font-semibold transition-colors ${isDarkMode ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-600 group-hover:text-slate-900'}`}>Desativar Colorização (Original)</span>
              </label>
           </div>
           
           {/* Transform */}
-          <div className="mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className={`mb-6 border rounded-xl p-4 shadow-sm ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
              <div className="flex justify-between items-end mb-4">
-               <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Tamanho da Arte</label>
-               <span className="text-xs text-green-700 font-black font-mono bg-green-100 px-2 py-1 rounded">{escala}%</span>
+               <label className={`text-xs font-bold uppercase tracking-wider ${textInfo}`}>Tamanho Padrão</label>
+               <span className={`text-xs font-black font-mono px-2 py-1 rounded ${isDarkMode ? 'text-green-400 bg-green-900/30' : 'text-green-700 bg-green-100'}`}>{escala}%</span>
              </div>
              <input 
                type="range" min="10" max="250" value={escala} 
@@ -573,25 +619,25 @@ function App() {
                }}
                className="w-full accent-green-600"
              />
-             <button onClick={centralizarEstampa} className="w-full mt-4 bg-slate-100/50 hover:bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider py-2.5 rounded-lg transition-colors border border-slate-200 shadow-sm flex justify-center items-center gap-2">
-                <Shirt size={14}/> Centralizar no Mockup
+             <button onClick={centralizarEstampa} className={`w-full mt-4 text-xs font-bold uppercase tracking-wider py-2.5 rounded-lg transition-colors border shadow-sm flex justify-center items-center gap-2 ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100/50 hover:bg-slate-100 border-slate-200 text-slate-600'}`}>
+                <Focus size={14}/> Auto-Center (Alvo)
              </button>
           </div>
 
           {/* Export Settings */}
-          <div className="mb-6">
-            <label className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 text-slate-700">
-               <FileText size={14} className="text-yellow-600"/> Nome do Arquivo
+          <div className={`mb-6 p-4 rounded-xl border ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-transparent border-transparent'}`}>
+            <label className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${textInfo}`}>
+               <FileText size={14} className={isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}/> Prefixo Customizado
             </label>
             <input 
               type="text" 
-              placeholder="Ex: colecao_patria"
+              placeholder="Ex: nova_colecao_patria"
               value={nomeExport}
               onChange={e => setNomeExport(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-sm font-medium rounded-lg px-3 py-2.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm"
+              className={`w-full border text-sm font-medium rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm ${inputBg}`}
             />
-            <p className="text-[10px] text-slate-500 mt-2 font-medium leading-tight">
-              Se vazio, usaremos o nome original das imagens. No caso do Lote via ZIP, os números serão sequenciados.
+            <p className={`text-[10px] mt-2 font-medium leading-tight ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+              Vazio = Usará o nome puro `<mockup> + <logo>`. No lote ZIP, adicionaremos a trilha _1, _2...
             </p>
           </div>
   
@@ -599,7 +645,7 @@ function App() {
              <button 
                onClick={baixarImagemUnica} 
                disabled={loadingSingle || !estampaSel || !fundoPreview}
-               className="w-full bg-white hover:bg-slate-50 text-blue-700 font-bold py-3.5 rounded-xl border-2 border-blue-100 hover:border-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+               className={`w-full font-bold py-3.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-blue-400 border-slate-700' : 'bg-white hover:bg-slate-50 text-blue-700 border-blue-100 hover:border-blue-200'}`}
              >
                {loadingSingle ? <RefreshCw className="animate-spin" size={18}/> : <FileImage size={18}/>}
                BAIXAR FOTO ATUAL
@@ -608,10 +654,10 @@ function App() {
              <button 
                onClick={gerarLote} 
                disabled={loadingBatch || fundoPaths.length === 0}
-               className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-wider py-4 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 border border-green-700/50"
+               className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black uppercase tracking-wider py-4 rounded-xl shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 border border-green-700/50"
              >
                {loadingBatch ? <RefreshCw className="animate-spin" size={20}/> : <Download size={20}/>}
-               GERAR LOTE ZIP ({fundoPaths.length})
+               ESCALONAR LOTE ({fundoPaths.length})
              </button>
           </div>
         </div>
