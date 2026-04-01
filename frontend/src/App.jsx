@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import Draggable from 'react-draggable';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import localforage from 'localforage';
+import { v4 as uuidv4 } from 'uuid';
 import { 
   Image as ImageIcon, 
   Shirt, 
@@ -9,16 +12,16 @@ import {
   Palette, 
   Layers,
   CheckCircle2,
+  Trash2,
+  Upload,
   RefreshCw
 } from 'lucide-react';
-
-const API_BASE = 'http://localhost:5000/api';
 
 function App() {
   const [fundos, setFundos] = useState([]);
   const [estampas, setEstampas] = useState([]);
   
-  const [fundoPaths, setFundoPaths] = useState([]); // Multiple selection for batch
+  const [fundoPaths, setFundoPaths] = useState([]); // Multiple selection for batch IDs
   const [estampaSel, setEstampaSel] = useState(null);
   const [fundoPreview, setFundoPreview] = useState(null); // Active background for canvas
   
@@ -30,73 +33,72 @@ function App() {
   const [canvasScale, setCanvasScale] = useState(1);
   const fundoContainerRef = useRef(null);
   const nodeRef = useRef(null);
+  const fileInputRef = useRef(null);
   
   const [abaAtual, setAbaAtual] = useState('fundos'); // fundos | estampas
   const [loadingBatch, setLoadingBatch] = useState(false);
 
   // Helper getters
-  const getCorHex = () => fundoPreview ? (fundoConfigs[fundoPreview.caminho]?.corHex ?? '#008237') : '#008237';
-  const getUsarCorOriginal = () => fundoPreview ? (fundoConfigs[fundoPreview.caminho]?.usarCorOriginal ?? false) : false;
+  const getCorHex = () => fundoPreview ? (fundoConfigs[fundoPreview.id]?.corHex ?? '#008237') : '#008237';
+  const getUsarCorOriginal = () => fundoPreview ? (fundoConfigs[fundoPreview.id]?.usarCorOriginal ?? false) : false;
   
-  const getPosX = () => estampaSel ? (estampaConfigs[estampaSel.caminho]?.posX ?? 0) : 0;
-  const getPosY = () => estampaSel ? (estampaConfigs[estampaSel.caminho]?.posY ?? 0) : 0;
-  const getEscala = () => estampaSel ? (estampaConfigs[estampaSel.caminho]?.escala ?? 100) : 100;
+  const getPosX = () => estampaSel ? (estampaConfigs[estampaSel.id]?.posX ?? 0) : 0;
+  const getPosY = () => estampaSel ? (estampaConfigs[estampaSel.id]?.posY ?? 0) : 0;
+  const getEscala = () => estampaSel ? (estampaConfigs[estampaSel.id]?.escala ?? 100) : 100;
 
   const setFundoConfig = (key, val) => {
     if (!fundoPreview) return;
     setFundoConfigs(prev => ({
       ...prev,
-      [fundoPreview.caminho]: { 
-        ...(prev[fundoPreview.caminho] || { corHex: '#008237', usarCorOriginal: false }), 
+      [fundoPreview.id]: { 
+        ...(prev[fundoPreview.id] || { corHex: '#008237', usarCorOriginal: false }), 
         [key]: val 
       }
     }));
   };
 
-  const setEstampaConfig = (caminho, key, val) => {
+  const setEstampaConfig = (id, key, val) => {
     setEstampaConfigs(prev => ({
       ...prev,
-      [caminho]: { 
-        ...(prev[caminho] || { posX: 0, posY: 0, escala: 100 }), 
+      [id]: { 
+        ...(prev[id] || { posX: 0, posY: 0, escala: 100 }), 
         [key]: val 
       }
     }));
   };
 
-  const fetchData = async () => {
+  // Carregar dados salvos no navegador (IndexedDB)
+  const loadDataFromDB = async () => {
     try {
-      const [respFundos, respEstampas] = await Promise.all([
-        axios.get(`${API_BASE}/fundos`),
-        axios.get(`${API_BASE}/estampas`)
-      ]);
-      setFundos(respFundos.data);
-      setEstampas(respEstampas.data);
-      if (respFundos.data.length > 0) {
-        setFundoPreview(respFundos.data[0]);
-        setFundoPaths([respFundos.data[0].caminho]);
+      const dbFundos = await localforage.getItem('db_fundos') || [];
+      const dbEstampas = await localforage.getItem('db_estampas') || [];
+      
+      setFundos(dbFundos);
+      setEstampas(dbEstampas);
+      
+      if (dbFundos.length > 0 && !fundoPreview) {
+        setFundoPreview(dbFundos[0]);
+        setFundoPaths([dbFundos[0].id]);
       }
-      if (respEstampas.data.length > 0) {
-        setEstampaSel(respEstampas.data[0]);
+      if (dbEstampas.length > 0 && !estampaSel) {
+        setEstampaSel(dbEstampas[0]);
       }
     } catch (err) {
-      console.error('Erro ao carregar dados:', err);
+      console.error('Erro ao ler DB Local:', err);
     }
   };
 
-  // Fetch initial data
   useEffect(() => {
-    fetchData();
+    loadDataFromDB();
   }, []);
 
   // Update natural size when print changes
   useEffect(() => {
     if (estampaSel) {
       const img = new Image();
-      img.onload = () => {
-        setNaturalSize({ w: img.naturalWidth || 300, h: img.naturalHeight || 300 });
-      };
+      img.onload = () => setNaturalSize({ w: img.naturalWidth || 300, h: img.naturalHeight || 300 });
       img.onerror = () => setNaturalSize({ w: 300, h: 300 });
-      img.src = `${API_BASE}/imagem_url?caminho=${encodeURIComponent(estampaSel.caminho)}`;
+      img.src = estampaSel.dataUrl;
     }
   }, [estampaSel]);
 
@@ -110,25 +112,82 @@ function App() {
         const s = Math.min(containerW / img.naturalWidth, containerH / img.naturalHeight, 1);
         setCanvasScale(s);
       };
-      img.src = `${API_BASE}/imagem_url?caminho=${encodeURIComponent(fundoPreview.caminho)}`;
+      img.src = fundoPreview.dataUrl;
     }
   }, [fundoPreview]);
 
-  const toggleFundoPath = (caminho, item) => {
-    if (fundoPaths.includes(caminho)) {
-      setFundoPaths(fundoPaths.filter(f => f !== caminho));
-      // if we deselected the preview one, switch to another valid one
-      if (fundoPreview?.caminho === caminho) {
-        const remaining = fundoPaths.filter(f => f !== caminho);
+  // Upload handler via HTML5 FileReader (Base64)
+  const handleFileUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    let isFundo = abaAtual === 'fundos';
+    const novosItens = [];
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        
+        await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                novosItens.push({
+                    id: uuidv4(),
+                    nome: file.name,
+                    dataUrl: event.target.result // base64 string
+                });
+                resolve();
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    if (novosItens.length > 0) {
+        if (isFundo) {
+            const newList = [...fundos, ...novosItens];
+            setFundos(newList);
+            await localforage.setItem('db_fundos', newList);
+            if (!fundoPreview) {
+                setFundoPreview(novosItens[0]);
+                setFundoPaths([novosItens[0].id]);
+            }
+        } else {
+            const newList = [...estampas, ...novosItens];
+            setEstampas(newList);
+            await localforage.setItem('db_estampas', newList);
+            if (!estampaSel) setEstampaSel(novosItens[0]);
+        }
+    }
+  };
+  
+  const removerItemDb = async (id, isFundo) => {
+      if (isFundo) {
+          const newList = fundos.filter(f => f.id !== id);
+          setFundos(newList);
+          await localforage.setItem('db_fundos', newList);
+          if (fundoPreview?.id === id) setFundoPreview(newList[0] || null);
+          setFundoPaths(fundoPaths.filter(fid => fid !== id));
+      } else {
+          const newList = estampas.filter(e => e.id !== id);
+          setEstampas(newList);
+          await localforage.setItem('db_estampas', newList);
+          if (estampaSel?.id === id) setEstampaSel(newList[0] || null);
+      }
+  };
+
+  const toggleFundoPath = (id, item) => {
+    if (fundoPaths.includes(id)) {
+      setFundoPaths(fundoPaths.filter(f => f !== id));
+      if (fundoPreview?.id === id) {
+        const remaining = fundoPaths.filter(f => f !== id);
         if (remaining.length > 0) {
-          const nextBg = fundos.find(f => f.caminho === remaining[0]);
-          setFundoPreview(nextBg);
+          setFundoPreview(fundos.find(f => f.id === remaining[0]));
         } else {
           setFundoPreview(null);
         }
       }
     } else {
-      setFundoPaths([...fundoPaths, caminho]);
+      setFundoPaths([...fundoPaths, id]);
       setFundoPreview(item);
     }
   };
@@ -137,11 +196,8 @@ function App() {
     if (!estampaSel) return;
     const px = Math.max(0, Math.round(ui.x));
     const py = Math.max(0, Math.round(ui.y));
-    
-    setEstampaConfigs(prev => {
-      const conf = prev[estampaSel.caminho] || { posX: 0, posY: 0, escala: 100 };
-      return { ...prev, [estampaSel.caminho]: { ...conf, posX: px, posY: py } };
-    });
+    setEstampaConfig(estampaSel.id, 'posX', px);
+    setEstampaConfig(estampaSel.id, 'posY', py);
   };
 
   const centralizarEstampa = () => {
@@ -156,14 +212,72 @@ function App() {
         const bgH = img.naturalHeight;
         const cx = Math.round(Math.max(0, (bgW - estampaW) / 2));
         const cy = Math.round(Math.max(0, (bgH - estampaH) / 2));
-        
-        setEstampaConfigs(prev => {
-          const conf = prev[estampaSel.caminho] || { posX: 0, posY: 0, escala: 100 };
-          return { ...prev, [estampaSel.caminho]: { ...conf, posX: cx, posY: cy } };
-        });
+        setEstampaConfig(estampaSel.id, 'posX', cx);
+        setEstampaConfig(estampaSel.id, 'posY', cy);
       };
-      img.src = `${API_BASE}/imagem_url?caminho=${encodeURIComponent(fundoPreview.caminho)}`;
+      img.src = fundoPreview.dataUrl;
     }
+  };
+
+  // Image Processing Core - Zero Server Canvas Rendering
+  const gerarImagemFinal = (fundoItem, estampaItem, configs) => {
+      return new Promise((resolve, reject) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          const imgFundo = new Image();
+          const imgEstampa = new Image();
+          
+          imgFundo.crossOrigin = "anonymous";
+          imgEstampa.crossOrigin = "anonymous";
+
+          imgFundo.onload = () => {
+              canvas.width = imgFundo.naturalWidth;
+              canvas.height = imgFundo.naturalHeight;
+              
+              // 1. Draw Background
+              ctx.drawImage(imgFundo, 0, 0, canvas.width, canvas.height);
+              
+              imgEstampa.onload = () => {
+                  const fator = Math.max(0.05, configs.escala / 100);
+                  const fEstampaW = Math.max(1, imgEstampa.naturalWidth * fator);
+                  const fEstampaH = Math.max(1, imgEstampa.naturalHeight * fator);
+                  
+                  const px = configs.posX;
+                  const py = configs.posY;
+                  
+                  // Se deve colorir, usamos um canvas offscreen pra aplicar TINT via globalComposite
+                  if (!configs.usarCorOriginal && configs.corHex) {
+                      const oc = document.createElement('canvas');
+                      const octx = oc.getContext('2d');
+                      oc.width = fEstampaW;
+                      oc.height = fEstampaH;
+                      
+                      // Draw logo
+                      octx.drawImage(imgEstampa, 0, 0, fEstampaW, fEstampaH);
+                      // Fill with color keeping alpha shape
+                      octx.globalCompositeOperation = 'source-in';
+                      octx.fillStyle = configs.corHex;
+                      octx.fillRect(0, 0, fEstampaW, fEstampaH);
+                      
+                      // Paste tinted logo
+                      ctx.drawImage(oc, px, py, fEstampaW, fEstampaH);
+                  } else {
+                      // Paste raw logic
+                      ctx.drawImage(imgEstampa, px, py, fEstampaW, fEstampaH);
+                  }
+                  
+                  // Export as Blob jpg
+                  canvas.toBlob((blob) => {
+                      resolve(blob);
+                  }, 'image/jpeg', 0.95);
+              };
+              imgEstampa.onerror = reject;
+              imgEstampa.src = estampaItem.dataUrl;
+          };
+          imgFundo.onerror = reject;
+          imgFundo.src = fundoItem.dataUrl;
+      });
   };
 
   const gerarLote = async () => {
@@ -171,39 +285,46 @@ function App() {
     setLoadingBatch(true);
     
     try {
-      const tarefas = fundoPaths.map(fv => {
-        const fConf = fundoConfigs[fv] || { corHex: '#008237', usarCorOriginal: false };
-        const eConf = estampaConfigs[estampaSel.caminho] || { posX: 0, posY: 0, escala: 100 };
-        return {
-          fundo_path: fv,
-          estampa_path: estampaSel.caminho,
-          pos_x: eConf.posX,
-          pos_y: eConf.posY,
-          escala: eConf.escala,
-          cor_hex: fConf.usarCorOriginal ? 'nenhuma' : fConf.corHex
-        };
-      });
+      const zip = new JSZip();
+      let hasFiles = false;
 
-      const resp = await axios.post(`${API_BASE}/gerar_lote`, { tarefas }, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([resp.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'lote_estampas.zip');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      for (const fId of fundoPaths) {
+          const fundoItem = fundos.find(f => f.id === fId);
+          if (!fundoItem) continue;
+          
+          const fConf = fundoConfigs[fId] || { corHex: '#008237', usarCorOriginal: false };
+          const eConf = estampaConfigs[estampaSel.id] || { posX: 0, posY: 0, escala: 100 };
+          
+          const mergedBlob = await gerarImagemFinal(fundoItem, estampaSel, {
+              ...eConf,
+              ...fConf
+          });
+          
+          if (mergedBlob) {
+              const baseNameFundo = fundoItem.nome.replace(/\.[^/.]+$/, "");
+              const baseNameEstampa = estampaSel.nome.replace(/\.[^/.]+$/, "");
+              const filename = `${baseNameFundo}__${baseNameEstampa}.jpg`;
+              zip.file(filename, mergedBlob);
+              hasFiles = true;
+          }
+      }
+
+      if (hasFiles) {
+          const zipContent = await zip.generateAsync({ type: "blob" });
+          saveAs(zipContent, "Lote_Estampas_Web.zip");
+      } else {
+          alert('Nenhuma imagem gerada com sucesso.');
+      }
       
     } catch (e) {
-      alert('Erro ao gerar lote!');
+      alert('Erro crítico ao gerar zip local');
       console.error(e);
     }
-    
     setLoadingBatch(false);
   };
 
-  // Cores CSS Variables dynamically
-  const estampaUrl = estampaSel ? `${API_BASE}/imagem_url?caminho=${encodeURIComponent(estampaSel.caminho)}` : null;
-  const fundoUrl = fundoPreview ? `${API_BASE}/imagem_url?caminho=${encodeURIComponent(fundoPreview.caminho)}` : null;
+  const estampaUrl = estampaSel ? estampaSel.dataUrl : null;
+  const fundoUrl = fundoPreview ? fundoPreview.dataUrl : null;
 
   const posX = getPosX();
   const posY = getPosY();
@@ -216,10 +337,10 @@ function App() {
       
       {/* SIDEBAR LEFT */}
       <div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col shadow-xl z-20">
-        <div className="p-5 border-b border-gray-800">
+        <div className="p-5 border-b border-gray-800 flex justify-between items-center">
           <h1 className="text-xl font-bold flex items-center gap-2 bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
             <Layers size={24} color="#34d399"/>
-            Generator Pro
+            Generator Web
           </h1>
         </div>
         
@@ -239,41 +360,59 @@ function App() {
           </button>
         </div>
 
+        {/* Upload Button */}
+        <div className="px-4 py-3 border-b border-gray-800">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2 bg-gray-800 hover:bg-gray-700 transition rounded-lg border border-gray-700 border-dashed text-sm font-medium text-emerald-400"
+            >
+              <Upload size={16}/> Upload Imagens Pessoais
+            </button>
+            <input 
+              type="file" multiple accept="image/*" 
+              className="hidden" ref={fileInputRef} 
+              onChange={handleFileUpload} 
+            />
+        </div>
+
         {/* List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {abaAtual === 'fundos' && fundos.map(item => (
             <div 
-              key={item.caminho} 
-              onClick={() => toggleFundoPath(item.caminho, item)}
-              className={`p-2 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3 relative overflow-hidden group ${fundoPaths.includes(item.caminho) ? 'border-emerald-500 bg-gray-800/50' : 'border-transparent hover:border-gray-700 bg-gray-800/20'}`}
+              key={item.id} 
+              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative overflow-hidden group ${fundoPaths.includes(item.id) ? 'border-emerald-500 bg-gray-800/50' : 'border-transparent hover:border-gray-700 bg-gray-800/20'}`}
             >
-               <img src={`${API_BASE}/imagem_url?caminho=${encodeURIComponent(item.caminho)}`} className="w-16 h-16 object-cover rounded-lg bg-white/5" />
-               <div className="flex-1 truncate text-sm font-medium flex flex-col">
+               <img src={item.dataUrl} onClick={() => toggleFundoPath(item.id, item)} className="w-16 h-16 object-cover cursor-pointer rounded-lg bg-white/5" />
+               <div className="flex-1 truncate text-sm font-medium flex flex-col cursor-pointer" onClick={() => toggleFundoPath(item.id, item)}>
                  <span>{item.nome}</span>
-                 {/* Mostrar preview da cor salva para o fundo caso configurada */}
-                 {fundoConfigs[item.caminho]?.corHex && !fundoConfigs[item.caminho]?.usarCorOriginal && (
+                 {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
                     <div className="flex items-center gap-1 mt-1">
-                      <div className="w-3 h-3 rounded-full border border-gray-600" style={{backgroundColor: fundoConfigs[item.caminho].corHex}}></div>
-                      <span className="text-xs text-gray-500 truncate">{fundoConfigs[item.caminho].corHex}</span>
+                      <div className="w-3 h-3 rounded-full border border-gray-600" style={{backgroundColor: fundoConfigs[item.id].corHex}}></div>
+                      <span className="text-xs text-gray-500 truncate">{fundoConfigs[item.id].corHex}</span>
                     </div>
                  )}
                </div>
-               {fundoPaths.includes(item.caminho) && <CheckCircle2 size={18} className="text-emerald-500 absolute top-2 right-2"/>}
+               <button className="text-gray-500 hover:text-red-400 p-2" onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, true); }}><Trash2 size={16}/></button>
+               {fundoPaths.includes(item.id) && <CheckCircle2 size={18} className="text-emerald-500 absolute top-2 right-2 pointer-events-none"/>}
             </div>
           ))}
 
           {abaAtual === 'estampas' && estampas.map(item => (
             <div 
-              key={item.caminho} 
-              onClick={() => setEstampaSel(item)}
-              className={`p-2 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3 relative ${estampaSel?.caminho === item.caminho ? 'border-cyan-500 bg-gray-800/50' : 'border-transparent hover:border-gray-700 bg-gray-800/20'}`}
+              key={item.id} 
+              className={`p-2 rounded-xl border-2 transition-all flex items-center gap-3 relative ${estampaSel?.id === item.id ? 'border-cyan-500 bg-gray-800/50' : 'border-transparent hover:border-gray-700 bg-gray-800/20'}`}
             >
-               <div className="w-16 h-16 p-2 rounded-lg bg-gray-200 flex items-center justify-center relative overflow-hidden">
-                 <img src={`${API_BASE}/imagem_url?caminho=${encodeURIComponent(item.caminho)}`} className="max-w-full max-h-full object-contain" />
+               <div className="w-16 h-16 p-2 rounded-lg bg-gray-200 cursor-pointer flex items-center justify-center relative overflow-hidden" onClick={() => setEstampaSel(item)}>
+                 <img src={item.dataUrl} className="max-w-full max-h-full object-contain" />
                </div>
-               <div className="flex-1 truncate text-sm font-medium">{item.nome}</div>
+               <div className="flex-1 cursor-pointer truncate text-sm font-medium" onClick={() => setEstampaSel(item)}>{item.nome}</div>
+               <button className="text-gray-500 hover:text-red-400 p-2" onClick={(e) => { e.stopPropagation(); removerItemDb(item.id, false); }}><Trash2 size={16}/></button>
             </div>
           ))}
+          
+          {(abaAtual === 'fundos' ? fundos : estampas).length === 0 && (
+              <div className="text-center text-sm text-gray-500 mt-10">Base local vazia.<br/>Faça seu upload acima.</div>
+          )}
         </div>
       </div>
 
@@ -282,12 +421,9 @@ function App() {
         {/* Top bar */}
         <div className="h-14 border-b border-gray-800 flex items-center px-6 justify-between bg-gray-900/50 z-10">
            <div className="text-sm font-medium text-gray-400">
-             {fundoPreview && <span className="mr-4 text-emerald-400 border border-emerald-900 bg-emerald-900/20 px-3 py-1 rounded-full">Fundo Ativo: {fundoPreview.nome}</span>}
-             {fundoPaths.length} Fundos selecionados para exportar Lote
+             {fundoPreview && <span className="mr-4 text-emerald-400 border border-emerald-900 bg-emerald-900/20 px-3 py-1 rounded-full">{fundoPreview.nome}</span>}
+             {fundoPaths.length} Fundos marcados
            </div>
-           <button onClick={fetchData} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 tooltip" title="Recarregar Pastas">
-             <RefreshCw size={18}/>
-           </button>
         </div>
         
         {/* Workspace */}
@@ -342,7 +478,7 @@ function App() {
           ) : (
             <div className="text-gray-600 flex flex-col items-center gap-4">
                <Layers size={48} className="opacity-50"/>
-               <p>Selecione um Fundo e uma Estampa para ver o Mockup</p>
+               <p>Faça upload e marque um Mockup e uma Arte para editar.</p>
             </div>
           )}
         </div>
@@ -356,7 +492,7 @@ function App() {
           </h2>
           
           <div className="mb-4 text-xs text-gray-500 px-3 py-2 bg-gray-800 rounded border border-gray-700 leading-tight">
-            Cores aplicam apenas a: <span className="text-emerald-400 font-bold">{fundoPreview.nome}</span>
+            Cores aplicam apenas a: <span className="text-emerald-400 font-bold max-w-full truncate block">{fundoPreview.nome}</span>
           </div>
 
           {/* Colors */}
@@ -378,7 +514,7 @@ function App() {
              
              <div className="flex items-center gap-3">
                <input type="color" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className="w-10 h-10 rounded overflow-hidden cursor-pointer shrink-0" />
-               <input type="text" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className="bg-gray-800 border bg-gray-800 text-sm rounded px-3 py-2 uppercase flex-1 font-mono tracking-widest text-emerald-400 disabled:opacity-50 border-gray-700 focus:outline-none focus:border-emerald-500 transition-colors" />
+               <input type="text" value={corHex} onChange={e => { setFundoConfig('corHex', e.target.value); setFundoConfig('usarCorOriginal', false); }} disabled={usarCorOriginal} className="bg-gray-800 border-gray-700 text-sm rounded px-3 py-2 uppercase flex-1 font-mono tracking-widest text-emerald-400 disabled:opacity-50 focus:outline-none focus:border-emerald-500 transition-colors" />
              </div>
              
              <label className="flex items-center gap-2 mt-4 cursor-pointer group">
@@ -386,7 +522,7 @@ function App() {
                    <input type="checkbox" checked={usarCorOriginal} onChange={e => setFundoConfig('usarCorOriginal', e.target.checked)} className="peer sr-only" />
                    <div className="w-10 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                </div>
-               <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Usar cor original da logo</span>
+               <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Usar cor original (Apenas Colar)</span>
              </label>
           </div>
           
@@ -401,7 +537,7 @@ function App() {
              <input 
                type="range" min="10" max="250" value={escala} 
                onChange={e => {
-                 if (estampaSel) setEstampaConfig(estampaSel.caminho, 'escala', Number(e.target.value));
+                 if (estampaSel) setEstampaConfig(estampaSel.id, 'escala', Number(e.target.value));
                }}
                className="w-full accent-emerald-500"
              />
@@ -418,7 +554,7 @@ function App() {
                className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-gray-900 font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(52,211,153,0.4)] transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
              >
                {loadingBatch ? <RefreshCw className="animate-spin" size={20}/> : <Download size={20}/>}
-               GERAR LOTE ZIP ({fundoPaths.length})
+               GERAR ZIP CLIENT-SIDE ({fundoPaths.length})
              </button>
           </div>
         </div>
