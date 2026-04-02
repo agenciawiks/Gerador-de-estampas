@@ -115,6 +115,7 @@ function App() {
   const [busca,         setBusca]         = useState('');
   const [confirmModal,  setConfirmModal]  = useState(null); // { title, message, danger, onConfirm }
   const [showKbdHints,  setShowKbdHints]  = useState(false);
+  const [escalaRascunho, setEscalaRascunho] = useState('100'); // string local do input
 
   const fundoContainerRef = useRef(null);
   const nodeRef           = useRef(null);
@@ -129,6 +130,11 @@ function App() {
   const posX          = getCfgEstamp('posX', 0);
   const posY          = getCfgEstamp('posY', 0);
   const escala        = getCfgEstamp('escala', 100);
+
+  // Sincroniza o rascunho quando o logo selecionado muda
+  useEffect(() => {
+    setEscalaRascunho(String(escala));
+  }, [estampaSel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setFundoConfig = (key, val) => {
     if (!fundoPreview) return;
@@ -895,10 +901,18 @@ function App() {
               <div className="flex justify-between items-center">
                 <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Escala de Logo</label>
                 <div className="flex items-center gap-1 bg-green-100 dark:bg-green-900/40 rounded px-1.5 py-0.5 border border-green-200 dark:border-green-800/50">
-                  <input 
+                  <input
                     type="number"
-                    value={escala}
-                    onChange={e => estampaSel && setEstampaConfig(estampaSel.id, 'escala', Math.max(5, Math.min(500, Number(e.target.value))))}
+                    value={escalaRascunho}
+                    onChange={e => setEscalaRascunho(e.target.value)}
+                    onBlur={e => {
+                      const v = Math.max(5, Math.min(500, Number(e.target.value) || 5));
+                      setEscalaRascunho(String(v));
+                      if (estampaSel) setEstampaConfig(estampaSel.id, 'escala', v);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') e.target.blur();
+                    }}
                     className="w-12 bg-transparent text-[13px] font-black font-mono text-center text-green-700 dark:text-green-400 focus:outline-none"
                   />
                   <span className="text-[11px] font-black font-mono text-green-700 dark:text-green-400">%</span>
