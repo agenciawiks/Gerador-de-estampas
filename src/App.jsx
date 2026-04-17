@@ -10,9 +10,11 @@ import {
   Sun, Moon, Zap, ChevronRight, AlertCircle, CheckCircle,
   X, Info, ImagePlus, MousePointer2, Crosshair, Search, Copy,
   ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Eraser, Keyboard,
-  AlertTriangle
+  AlertTriangle, Bot
 } from 'lucide-react';
 import './App.css';
+import GeminiPromptGenerator from './GeminiPromptGenerator';
+import GeradordeERP from './components/GeradordeERP';
 
 // ─── Toast hook ─────────────────────────────────────────────────────────────
 function useToast() {
@@ -116,6 +118,7 @@ function App() {
   const [confirmModal,  setConfirmModal]  = useState(null); // { title, message, danger, onConfirm }
   const [showKbdHints,  setShowKbdHints]  = useState(false);
   const [escalaRascunho, setEscalaRascunho] = useState('100'); // string local do input
+  const [sidebarSize, setSidebarSize] = useState('normal'); // 'small', 'normal', 'large'
 
   const fundoContainerRef = useRef(null);
   const nodeRef           = useRef(null);
@@ -459,7 +462,7 @@ function App() {
 
       {/* ══════════════ SIDEBAR LEFT ══════════════ */}
       <aside
-        className={`w-72 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-xl shrink-0 transition-all ${isDragOver ? 'drag-active' : ''}`}
+        className={`${sidebarSize === 'small' ? 'w-64' : sidebarSize === 'large' ? 'w-[400px]' : 'w-[320px]'} flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-xl shrink-0 transition-all duration-300 ease-in-out ${isDragOver ? 'drag-active' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -476,198 +479,247 @@ function App() {
                 Gerador de Mockups
               </p>
             </div>
-            <button
-              onClick={toggleTheme}
-              title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
-              className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-yellow-400 border border-slate-200 dark:border-slate-700 transition-all shrink-0 shadow-sm"
-            >
-              {isDarkMode ? <Sun size={13}/> : <Moon size={13}/>}
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setSidebarSize(s => s === 'normal' ? 'large' : s === 'large' ? 'small' : 'normal')}
+                title="Redimensionar Barra Lateral"
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition-all shadow-sm flex items-center justify-center"
+              >
+                {sidebarSize === 'small' ? <ArrowRight size={13}/> : sidebarSize === 'large' ? <ArrowLeft size={13}/> : <Layers size={13}/>}
+              </button>
+              <button
+                onClick={toggleTheme}
+                title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-yellow-400 border border-slate-200 dark:border-slate-700 transition-all shadow-sm"
+              >
+                {isDarkMode ? <Sun size={13}/> : <Moon size={13}/>}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* ── Tabs ── */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-2 gap-[1px] bg-slate-200 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 p-[1px]">
           {[
             { key: 'fundos',   icon: <Shirt size={13}/>,     label: 'MOCKUPS', count: fundos.length,   color: 'green'  },
             { key: 'estampas', icon: <ImageIcon size={13}/>, label: 'LOGOS',   count: estampas.length, color: 'yellow' },
+            { key: 'prompt',   icon: <Bot size={13}/>,       label: 'PROMPT',  count: null,            color: 'blue'   },
+            { key: 'gerador-erp', icon: <FileText size={13}/>, label: 'GERADOR ERP', count: null, color: 'purple' },
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setAbaAtual(tab.key)}
-              className={`flex-1 py-2.5 text-[11px] font-bold flex justify-center items-center gap-1.5 border-b-2 transition-all ${
+              className={`w-full py-3.5 text-[11px] font-bold flex justify-center items-center gap-1.5 transition-all outline-none focus:outline-none ${
                 abaAtual === tab.key
                   ? tab.color === 'green'
-                    ? 'border-green-500 text-green-600 dark:text-green-400 bg-green-50/60 dark:bg-green-900/20'
-                    : 'border-yellow-500 text-yellow-600 dark:text-yellow-400 bg-yellow-50/60 dark:bg-yellow-900/20'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    ? 'border-b-2 border-green-500 text-green-600 dark:text-green-400 bg-green-50/80 dark:bg-green-900/40 relative z-10'
+                    : tab.color === 'yellow'
+                      ? 'border-b-2 border-yellow-500 text-yellow-600 dark:text-yellow-400 bg-yellow-50/80 dark:bg-yellow-900/40 relative z-10'
+                      : tab.color === 'purple'
+                        ? 'border-b-2 border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50/80 dark:bg-purple-900/40 relative z-10'
+                        : 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/40 relative z-10'
+                  : 'border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/80 dark:hover:bg-slate-800/80 bg-white dark:bg-slate-900'
               }`}
             >
-              {tab.icon} {tab.label} ({tab.count})
+              <div className="flex items-center gap-1.5 truncate px-1">
+                {tab.icon} {tab.label} {tab.count !== null ? <span className="opacity-70">({tab.count})</span> : ''}
+              </div>
             </button>
           ))}
         </div>
 
-        {/* ── Upload button ── */}
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold uppercase transition-all ${
-              isDragOver
-                ? 'border-green-500 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10'
-                : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-green-400 dark:hover:border-green-600 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50/40 dark:hover:bg-green-900/10'
-            }`}
-          >
-            {isDragOver ? <ImagePlus size={15} className="text-green-500"/> : <Upload size={15}/>}
-            {isDragOver ? 'Solte para adicionar' : 'Enviar Imagens'}
-          </button>
-          <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload}/>
-        </div>
-
-        {/* ── Search & Actions ── */}
-        <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 space-y-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-            <input 
-              type="text" 
-              placeholder={`Buscar ${abaAtual === 'fundos' ? 'mockup' : 'logo'}...`}
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            {busca && (
-              <button 
-                onClick={() => setBusca('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                title="Limpar busca"
+        {/* ── Conditional left panel body ── */}
+        {(abaAtual === 'fundos' || abaAtual === 'estampas') ? (
+          <>
+            {/* ── Upload button ── */}
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold uppercase transition-all ${
+                  isDragOver
+                    ? 'border-green-500 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-green-400 dark:hover:border-green-600 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50/40 dark:hover:bg-green-900/10'
+                }`}
               >
-                <X size={12}/>
+                {isDragOver ? <ImagePlus size={15} className="text-green-500"/> : <Upload size={15}/>}
+                {isDragOver ? 'Solte para adicionar' : 'Enviar Imagens'}
               </button>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5 px-1">
-             <div className="flex justify-between items-center">
-               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
-                 {itensFiltrados.length} resultados
-               </span>
-               <button 
-                 onClick={() => limparTudo(abaAtual === 'fundos')}
-                 className="text-[10px] font-bold text-red-500 hover:text-red-600 dark:text-red-400/70 dark:hover:text-red-400 flex items-center gap-1 transition-colors"
-               >
-                 <Eraser size={11}/> {abaAtual === 'fundos' ? 'Limpar Mockups' : 'Limpar Logos'}
-               </button>
-             </div>
-             {abaAtual === 'fundos' && fundos.length > 0 && (
-               <div className="flex gap-2">
-                 <button 
-                  onClick={() => { setFundoPaths(fundos.map(f => f.id)); if (fundos.length > 0) setFundoPreview(fundos[0]); }}
-                  className="flex-1 text-[9px] font-bold uppercase py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-                 >
-                   Selecionar Todos
-                 </button>
-                 <button 
-                  onClick={() => setFundoPaths([])}
-                  className="flex-1 text-[9px] font-bold uppercase py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                 >
-                   Desmarcar
-                 </button>
-               </div>
-             )}
-          </div>
-        </div>
+              <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload}/>
+            </div>
 
-        {/* ── List ── */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/80 dark:bg-[#020617]">
-          {/* Mockups list */}
-          {abaAtual === 'fundos' && itensFiltrados.map(item => {
-            const selected = fundoPaths.includes(item.id);
-            return (
-              <div
-                key={item.id}
-                onClick={() => toggleFundoPath(item.id, item)}
-                className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative overflow-hidden group cursor-pointer ${
-                  selected
-                    ? 'border-green-500 bg-green-50 dark:bg-green-950/40 shadow-green-500/10 shadow-md'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-green-300 dark:hover:border-green-800'
-                }`}
-              >
-                <img src={item.dataUrl} alt={item.nome} className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0"/>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
-                  {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 shrink-0" style={{ backgroundColor: fundoConfigs[item.id].corHex }}/>
-                      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase">{fundoConfigs[item.id].corHex}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-center gap-1 shrink-0">
-                  {selected && <CheckCircle2 size={15} className="text-green-500"/>}
-                  <button
-                    onClick={e => { e.stopPropagation(); removerItemDb(item.id, true); }}
-                    className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100"
-                    title="Remover"
+            {/* ── Search & Actions ── */}
+            <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                <input 
+                  type="text" 
+                  placeholder={`Buscar ${abaAtual === 'fundos' ? 'mockup' : 'logo'}...`}
+                  value={busca}
+                  onChange={e => setBusca(e.target.value)}
+                  className="w-full pl-9 pr-8 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+                {busca && (
+                  <button 
+                    onClick={() => setBusca('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                    title="Limpar busca"
                   >
-                    <Trash2 size={13}/>
+                    <X size={12}/>
                   </button>
-                </div>
+                )}
               </div>
-            );
-          })}
-
-          {/* Logos list */}
-          {abaAtual === 'estampas' && itensFiltrados.map(item => {
-            const selected = estampaSel?.id === item.id;
-            return (
-              <div
-                key={item.id}
-                onClick={() => setEstampaSel(item)}
-                className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative group cursor-pointer ${
-                  selected
-                    ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 shadow-yellow-500/10 shadow-md'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-yellow-300 dark:hover:border-yellow-800'
-                }`}
-              >
-                <div className="w-14 h-14 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 shrink-0">
-                  <img src={item.dataUrl} alt={item.nome} className="max-w-full max-h-full object-contain drop-shadow-sm"/>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
-                  {selected && <span className="text-[10px] font-bold text-yellow-600 dark:text-yellow-400 mt-0.5 block">Selecionado</span>}
-                </div>
-                <button
-                  onClick={e => { e.stopPropagation(); removerItemDb(item.id, false); }}
-                  className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                  title="Remover"
-                >
-                  <Trash2 size={13}/>
-                </button>
-              </div>
-            );
-          })}
-
-          {/* Empty state */}
-          {(abaAtual === 'fundos' ? fundos : estampas).length === 0 && (
-            <div className="flex flex-col items-center text-center gap-3 mt-6 px-4 py-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-              <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
-                {abaAtual === 'fundos' ? <Shirt size={20} className="text-slate-400"/> : <ImageIcon size={20} className="text-slate-400"/>}
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  {abaAtual === 'fundos' ? 'Nenhum mockup ainda' : 'Nenhum logo ainda'}
-                </p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
-                  Clique em "Enviar Imagens"<br/>ou arraste arquivos aqui.
-                </p>
+              <div className="flex flex-col gap-1.5 px-1">
+                 <div className="flex justify-between items-center">
+                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                     {itensFiltrados.length} resultados
+                   </span>
+                   <button 
+                     onClick={() => limparTudo(abaAtual === 'fundos')}
+                     className="text-[10px] font-bold text-red-500 hover:text-red-600 dark:text-red-400/70 dark:hover:text-red-400 flex items-center gap-1 transition-colors"
+                   >
+                     <Eraser size={11}/> {abaAtual === 'fundos' ? 'Limpar Mockups' : 'Limpar Logos'}
+                   </button>
+                 </div>
+                 {abaAtual === 'fundos' && fundos.length > 0 && (
+                   <div className="flex gap-2">
+                     <button 
+                      onClick={() => { setFundoPaths(fundos.map(f => f.id)); if (fundos.length > 0) setFundoPreview(fundos[0]); }}
+                      className="flex-1 text-[9px] font-bold uppercase py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                     >
+                       Selecionar Todos
+                     </button>
+                     <button 
+                      onClick={() => setFundoPaths([])}
+                      className="flex-1 text-[9px] font-bold uppercase py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                     >
+                       Desmarcar
+                     </button>
+                   </div>
+                 )}
               </div>
             </div>
-          )}
-        </div>
+
+            {/* ── List ── */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/80 dark:bg-[#020617]">
+              {/* Mockups list */}
+              {abaAtual === 'fundos' && itensFiltrados.map(item => {
+                const selected = fundoPaths.includes(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => toggleFundoPath(item.id, item)}
+                    className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative overflow-hidden group cursor-pointer ${
+                      selected
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950/40 shadow-green-500/10 shadow-md'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-green-300 dark:hover:border-green-800'
+                    }`}
+                  >
+                    <img src={item.dataUrl} alt={item.nome} className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0"/>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
+                      {fundoConfigs[item.id]?.corHex && !fundoConfigs[item.id]?.usarCorOriginal && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 shrink-0" style={{ backgroundColor: fundoConfigs[item.id].corHex }}/>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase">{fundoConfigs[item.id].corHex}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      {selected && <CheckCircle2 size={15} className="text-green-500"/>}
+                      <button
+                        onClick={e => { e.stopPropagation(); removerItemDb(item.id, true); }}
+                        className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100"
+                        title="Remover"
+                      >
+                        <Trash2 size={13}/>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Logos list */}
+              {abaAtual === 'estampas' && itensFiltrados.map(item => {
+                const selected = estampaSel?.id === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setEstampaSel(item)}
+                    className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative group cursor-pointer ${
+                      selected
+                        ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 shadow-yellow-500/10 shadow-md'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-yellow-300 dark:hover:border-yellow-800'
+                    }`}
+                  >
+                    <div className="w-14 h-14 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 shrink-0">
+                      <img src={item.dataUrl} alt={item.nome} className="max-w-full max-h-full object-contain drop-shadow-sm"/>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
+                      {selected && <span className="text-[10px] font-bold text-yellow-600 dark:text-yellow-400 mt-0.5 block">Selecionado</span>}
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); removerItemDb(item.id, false); }}
+                      className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                      title="Remover"
+                    >
+                      <Trash2 size={13}/>
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Empty state */}
+              {(abaAtual === 'fundos' ? fundos : estampas).length === 0 && (
+                <div className="flex flex-col items-center text-center gap-3 mt-6 px-4 py-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                    {abaAtual === 'fundos' ? <Shirt size={20} className="text-slate-400"/> : <ImageIcon size={20} className="text-slate-400"/>}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      {abaAtual === 'fundos' ? 'Nenhum mockup ainda' : 'Nenhum logo ainda'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
+                      Clique em "Enviar Imagens"<br/>ou arraste arquivos aqui.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center bg-slate-50/80 dark:bg-[#020617]">
+            <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800/60 text-slate-300 dark:text-slate-600">
+              {abaAtual === 'gerador-erp' ? <FileText size={32} /> : <Bot size={32} />}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                {abaAtual === 'gerador-erp' ? 'Gerador de ERP' : 'Gerador de Prompts'}
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed max-w-[200px] mx-auto">
+                {abaAtual === 'gerador-erp' 
+                  ? 'Gere descrições formatadas para o seu sistema ERP.'
+                  : 'Configure os detalhes físicos e de estilo para gerar o prompt ideal para inteligências artificiais.'}
+              </p>
+            </div>
+          </div>
+        )}
+
       </aside>
 
       {/* ══════════════ CANVAS MIDDLE ══════════════ */}
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-[#020617] relative min-w-0">
-        {/* Dot grid background */}
+        {abaAtual === 'prompt' ? (
+          <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
+            <GeminiPromptGenerator />
+          </div>
+        ) : abaAtual === 'gerador-erp' ? (
+          <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
+            <GeradordeERP />
+          </div>
+        ) : (
+          <>
+            {/* Dot grid background */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{ backgroundImage: 'radial-gradient(circle, #94a3b820 1px, transparent 0)', backgroundSize: '22px 22px' }}
@@ -804,9 +856,12 @@ function App() {
             </div>
           )}
         </div>
+          </>
+        )}
       </main>
 
       {/* ══════════════ SIDEBAR RIGHT ══════════════ */}
+      {(abaAtual === 'fundos' || abaAtual === 'estampas') && (
       <aside className="w-72 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col z-20 shadow-[-4px_0_20px_rgba(0,0,0,0.04)] shrink-0 overflow-y-auto">
 
         {/* Panel header */}
@@ -1084,6 +1139,7 @@ function App() {
           </button>
         </div>
       </aside>
+      )}
     </div>
   );
 }
