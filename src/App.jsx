@@ -316,15 +316,12 @@ function App() {
     });
   };
 
-  const toggleFundoPath = (id, item) => {
+  const toggleFundoPath = (id) => {
     if (fundoPaths.includes(id)) {
       const rem = fundoPaths.filter(f => f !== id);
       setFundoPaths(rem);
-      if (fundoPreview?.id === id)
-        setFundoPreview(rem.length > 0 ? fundos.find(f => f.id === rem[0]) : null);
     } else {
       setFundoPaths(p => [...p, id]);
-      setFundoPreview(item);
     }
   };
 
@@ -607,11 +604,11 @@ function App() {
                 return (
                   <div
                     key={item.id}
-                    onClick={() => toggleFundoPath(item.id, item)}
+                    onClick={() => setFundoPreview(item)}
                     className={`p-2 rounded-xl border-2 transition-all flex items-center gap-2.5 relative overflow-hidden group cursor-pointer ${
-                      selected
-                        ? 'border-green-500 bg-green-50 dark:bg-green-950/40 shadow-green-500/10 shadow-md'
-                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-green-300 dark:hover:border-green-800'
+                      fundoPreview?.id === item.id
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 shadow-blue-500/10 shadow-md'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     <img src={item.dataUrl} alt={item.nome} className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0"/>
@@ -625,10 +622,18 @@ function App() {
                       )}
                     </div>
                     <div className="flex flex-col items-center gap-1 shrink-0">
-                      {selected && <CheckCircle2 size={15} className="text-green-500"/>}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleFundoPath(item.id); }}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          selected ? 'bg-green-100 dark:bg-green-900/60 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-green-50 hover:text-green-500'
+                        }`}
+                        title={selected ? "Remover do Lote" : "Adicionar ao Lote"}
+                      >
+                        <CheckCircle2 size={15} />
+                      </button>
                       <button
                         onClick={e => { e.stopPropagation(); removerItemDb(item.id, true); }}
-                        className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100"
+                        className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
                         title="Remover"
                       >
                         <Trash2 size={13}/>
@@ -658,13 +663,24 @@ function App() {
                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">{item.nome}</span>
                       {selected && <span className="text-[10px] font-bold text-yellow-600 dark:text-yellow-400 mt-0.5 block">Selecionado</span>}
                     </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); removerItemDb(item.id, false); }}
-                      className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                      title="Remover"
-                    >
-                      <Trash2 size={13}/>
-                    </button>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEstampaSel(item); }}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          selected ? 'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-600 dark:text-yellow-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-yellow-50 hover:text-yellow-500'
+                        }`}
+                        title={selected ? "Selecionado" : "Selecionar"}
+                      >
+                        <MousePointer2 size={15} />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); removerItemDb(item.id, false); }}
+                        className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 shrink-0 cursor-pointer"
+                        title="Remover"
+                      >
+                        <Trash2 size={13}/>
+                      </button>
+                    </div>
                   </div>
                 );
               })}

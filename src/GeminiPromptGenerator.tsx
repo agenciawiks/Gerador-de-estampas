@@ -150,10 +150,10 @@ function ChipGroup({ options, value, onChange }: ChipGroupProps) {
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
-          className={`px-4 py-1.5 rounded-full text-sm cursor-pointer transition-all duration-150 border font-medium ${
+          className={`px-4 py-2 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold cursor-pointer select-none transition-all shadow-sm ${
             value === opt.value
-              ? "border-blue-500 bg-blue-50 text-blue-700 font-semibold"
-              : "border-gray-300 bg-gray-50 text-gray-500 hover:border-gray-400 hover:text-gray-700"
+              ? "bg-indigo-600 border border-indigo-500 text-white shadow-indigo-500/30"
+              : "bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-indigo-400 dark:hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400"
           }`}
         >
           {opt.label}
@@ -170,22 +170,25 @@ interface SectionProps {
 
 function Section({ title, children }: SectionProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm">
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-        {title}
-      </p>
+    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 mb-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
+        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest leading-none m-0">
+          {title}
+        </p>
+      </div>
       {children}
     </div>
   );
 }
 
 const selectClass =
-  "w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-300 transition";
+  "w-full px-4 py-3 text-sm lg:text-base font-medium bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm appearance-none cursor-pointer";
 
 const inputClass =
-  "w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-300 transition";
+  "w-full px-4 py-3 text-sm lg:text-base font-medium bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm";
 
-const labelClass = "block text-xs text-gray-500 mb-1";
+const labelClass = "text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2";
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -223,17 +226,22 @@ export default function GeminiPromptGenerator() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="w-full flex items-center justify-center p-4">
+      <div className="max-w-3xl w-full mx-auto py-10 px-6 my-4 bg-slate-50 dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800">
 
         {/* Header */}
-        <div className="mb-7">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            Gerador de Prompt — Gemini
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Preencha as características e gere um prompt para variação de modelo com foto de referência.
-          </p>
+        <div className="flex items-center gap-4 border-b border-slate-200 dark:border-slate-700 pb-5 mb-8">
+          <div className="p-3 bg-indigo-500 text-white rounded-xl shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">
+              Gerador de Prompt — Gemini
+            </h1>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
+              Preencha as características e gere um prompt para variação de modelo com foto de referência.
+            </p>
+          </div>
         </div>
 
         {/* Gênero */}
@@ -413,32 +421,38 @@ export default function GeminiPromptGenerator() {
         {/* Botão gerar */}
         <button
           onClick={handleGenerate}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white rounded-xl text-sm font-semibold tracking-wide transition-all duration-150 mb-4 shadow-sm cursor-pointer"
+          className="w-full flex justify-center items-center gap-2 px-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-indigo-600/30 mt-8 mb-4"
         >
           Gerar prompt para o Gemini
         </button>
 
         {/* Output */}
         {prompt && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+                <span className="text-indigo-600 dark:text-indigo-400 font-bold mb-1">↳</span>
+              </div>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                 Prompt gerado
+              </p>
+            </div>
+            <div className="relative group">
+              <p className="bg-slate-100 dark:bg-black/50 border-2 border-slate-200 dark:border-slate-800 rounded-xl px-6 py-5 text-[15px] leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-200 min-h-[140px] font-mono shadow-inner overflow-x-auto">
+                {prompt}
               </p>
               <button
                 onClick={handleCopy}
-                className={`px-4 py-1.5 text-xs rounded-lg border transition-all duration-150 cursor-pointer font-medium ${
-                  copied
-                    ? "border-green-300 bg-green-50 text-green-700"
-                    : "border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                title="Copiar Prompt"
+                className={`absolute top-4 right-4 px-4 py-2 flex items-center justify-center gap-2 text-white text-xs font-bold rounded-lg shadow-md transition-all ${
+                  copied 
+                    ? "bg-emerald-600 shadow-emerald-600/30 opacity-100" 
+                    : "bg-indigo-600 hover:bg-indigo-500 opacity-0 group-hover:opacity-100"
                 }`}
               >
                 {copied ? "Copiado!" : "Copiar"}
               </button>
             </div>
-            <p className="text-sm text-gray-700 leading-relaxed font-mono bg-gray-50 border border-gray-200 rounded-lg p-4 whitespace-pre-wrap break-words">
-              {prompt}
-            </p>
           </div>
         )}
 

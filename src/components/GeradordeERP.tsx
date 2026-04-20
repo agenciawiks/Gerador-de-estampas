@@ -140,6 +140,8 @@ export default function GeradordeERP() {
               <option value="Boné">Boné</option>
               <option value="Moletom">Moletom</option>
               <option value="Regata">Regata</option>
+              <option value="MDF">MDF</option>
+              <option value="Mousepad">Mousepad</option>
               <option value="Outro">Outro</option>
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
