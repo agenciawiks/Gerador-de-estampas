@@ -10,11 +10,12 @@ import {
   Sun, Moon, Zap, ChevronRight, AlertCircle, CheckCircle,
   X, Info, ImagePlus, MousePointer2, Crosshair, Search, Copy,
   ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Eraser, Keyboard,
-  AlertTriangle, Bot
+  AlertTriangle, Bot, Hash
 } from 'lucide-react';
 import './App.css';
 import GeminiPromptGenerator from './GeminiPromptGenerator';
 import GeradordeERP from './components/GeradordeERP';
+import CriadorDeSKU from './components/CriadorDeSKU';
 
 // ─── Toast hook ─────────────────────────────────────────────────────────────
 function useToast() {
@@ -495,24 +496,27 @@ function App() {
         </div>
 
         {/* ── Tabs ── */}
-        <div className="grid grid-cols-2 gap-[1px] bg-slate-200 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 p-[1px]">
+        <div className="grid grid-cols-2 gap-[1px] bg-slate-200 dark:bg-slate-800 border-b border-slate-200 dark:bg-slate-800 p-[1px]">
           {[
             { key: 'fundos', icon: <Shirt size={13} />, label: 'MOCKUPS', count: fundos.length, color: 'green' },
             { key: 'estampas', icon: <ImageIcon size={13} />, label: 'LOGOS', count: estampas.length, color: 'yellow' },
             { key: 'prompt', icon: <Bot size={13} />, label: 'PROMPT', count: null, color: 'blue' },
             { key: 'gerador-erp', icon: <FileText size={13} />, label: 'GERADOR ERP', count: null, color: 'purple' },
+            { key: 'criador-sku', icon: <Hash size={13} />, label: 'CRIADOR SKU', count: null, color: 'orange' },
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setAbaAtual(tab.key)}
-              className={`w-full py-3.5 text-[11px] font-bold flex justify-center items-center gap-1.5 transition-all outline-none focus:outline-none ${abaAtual === tab.key
+              className={`w-full py-3.5 text-[11px] font-bold flex justify-center items-center gap-1.5 transition-all outline-none focus:outline-none ${tab.key === 'criador-sku' ? 'col-span-2' : ''} ${abaAtual === tab.key
                   ? tab.color === 'green'
                     ? 'border-b-2 border-green-500 text-green-600 dark:text-green-400 bg-green-50/80 dark:bg-green-900/40 relative z-10'
                     : tab.color === 'yellow'
                       ? 'border-b-2 border-yellow-500 text-yellow-600 dark:text-yellow-400 bg-yellow-50/80 dark:bg-yellow-900/40 relative z-10'
                       : tab.color === 'purple'
                         ? 'border-b-2 border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50/80 dark:bg-purple-900/40 relative z-10'
-                        : 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/40 relative z-10'
+                        : tab.color === 'orange'
+                          ? 'border-b-2 border-orange-500 text-orange-600 dark:text-orange-400 bg-orange-50/80 dark:bg-orange-900/40 relative z-10'
+                          : 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/40 relative z-10'
                   : 'border-b-2 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/80 dark:hover:bg-slate-800/80 bg-white dark:bg-slate-900'
                 }`}
             >
@@ -699,16 +703,18 @@ function App() {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center bg-slate-50/80 dark:bg-[#020617]">
             <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800/60 text-slate-300 dark:text-slate-600">
-              {abaAtual === 'gerador-erp' ? <FileText size={32} /> : <Bot size={32} />}
+              {abaAtual === 'gerador-erp' ? <FileText size={32} /> : abaAtual === 'criador-sku' ? <Hash size={32} /> : <Bot size={32} />}
             </div>
             <div>
               <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
-                {abaAtual === 'gerador-erp' ? 'Gerador de ERP' : 'Gerador de Prompts'}
+                {abaAtual === 'gerador-erp' ? 'Gerador de ERP' : abaAtual === 'criador-sku' ? 'Criador de SKU' : 'Gerador de Prompts'}
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed max-w-[200px] mx-auto">
                 {abaAtual === 'gerador-erp'
                   ? 'Gere descrições formatadas para o seu sistema ERP.'
-                  : 'Configure os detalhes físicos e de estilo para gerar o prompt ideal para inteligências artificiais.'}
+                  : abaAtual === 'criador-sku'
+                    ? 'Gere SKUs padronizados para integração de estoque e e-commerce.'
+                    : 'Configure os detalhes físicos e de estilo para gerar o prompt ideal para inteligências artificiais.'}
               </p>
             </div>
           </div>
@@ -725,6 +731,10 @@ function App() {
         ) : abaAtual === 'gerador-erp' ? (
           <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
             <GeradordeERP />
+          </div>
+        ) : abaAtual === 'criador-sku' ? (
+          <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
+            <CriadorDeSKU />
           </div>
         ) : (
           <>
