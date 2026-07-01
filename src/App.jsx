@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Draggable from 'react-draggable';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import localforage from 'localforage';
 import { v4 as uuidv4 } from 'uuid';
+import { appDb } from './db';
 import {
   Image as ImageIcon, Shirt, Download, Settings2, Palette, Layers,
   CheckCircle2, Trash2, Upload, RefreshCw, FileText, FileImage,
@@ -192,9 +192,9 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const dbF = await localforage.getItem('db_fundos') || [];
-        const dbE = await localforage.getItem('db_estampas') || [];
-        const dbTh = await localforage.getItem('db_theme_mode');
+        const dbF = await appDb.loadFundos();
+        const dbE = await appDb.loadEstampas();
+        const dbTh = await appDb.loadTheme();
         if (dbTh !== null) setIsDarkMode(dbTh);
         setFundos(dbF);
         setEstampas(dbE);
@@ -207,7 +207,7 @@ function App() {
   const toggleTheme = () => {
     const v = !isDarkMode;
     setIsDarkMode(v);
-    localforage.setItem('db_theme_mode', v);
+    appDb.saveTheme(v);
   };
 
   // ── Prevent close during batch ─────────────────────────────────────────────
@@ -247,25 +247,33 @@ function App() {
     if (!files?.length) return;
     const isFundo = abaAtual === 'fundos';
     const novos = [];
+    
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
-      await new Promise(res => {
-        const r = new FileReader();
-        r.onload = ev => { novos.push({ id: uuidv4(), nome: file.name, dataUrl: ev.target.result }); res(); };
-        r.readAsDataURL(file);
-      });
+      try {
+        const id = uuidv4();
+        let savedItem;
+        if (isFundo) {
+          savedItem = await appDb.saveFundo(id, file.name, file);
+        } else {
+          savedItem = await appDb.saveEstampa(id, file.name, file);
+        }
+        novos.push(savedItem);
+      } catch (err) {
+        console.error("Erro ao fazer upload:", err);
+        toast(`Erro ao processar ${file.name}`, 'error');
+      }
     }
+    
     if (!novos.length) return;
     if (isFundo) {
       const list = [...fundos, ...novos];
       setFundos(list);
-      await localforage.setItem('db_fundos', list);
       if (!fundoPreview) { setFundoPreview(novos[0]); setFundoPaths([novos[0].id]); }
       toast(`${novos.length} mockup(s) adicionado(s)!`, 'success');
     } else {
       const list = [...estampas, ...novos];
       setEstampas(list);
-      await localforage.setItem('db_estampas', list);
       if (!estampaSel) setEstampaSel(novos[0]);
       toast(`${novos.length} logo(s) adicionado(s)!`, 'success');
     }
@@ -277,19 +285,24 @@ function App() {
   const handleDrop = e => { e.preventDefault(); setIsDragOver(false); processFiles(e.dataTransfer.files); };
 
   const removerItemDb = async (id, isFundo) => {
-    if (isFundo) {
-      const list = fundos.filter(f => f.id !== id);
-      setFundos(list);
-      await localforage.setItem('db_fundos', list);
-      if (fundoPreview?.id === id) setFundoPreview(list[0] || null);
-      setFundoPaths(p => p.filter(fid => fid !== id));
-    } else {
-      const list = estampas.filter(e => e.id !== id);
-      setEstampas(list);
-      await localforage.setItem('db_estampas', list);
-      if (estampaSel?.id === id) setEstampaSel(list[0] || null);
+    try {
+      if (isFundo) {
+        const list = fundos.filter(f => f.id !== id);
+        setFundos(list);
+        await appDb.deleteFundo(id);
+        if (fundoPreview?.id === id) setFundoPreview(list[0] || null);
+        setFundoPaths(p => p.filter(fid => fid !== id));
+      } else {
+        const list = estampas.filter(e => e.id !== id);
+        setEstampas(list);
+        await appDb.deleteEstampa(id);
+        if (estampaSel?.id === id) setEstampaSel(list[0] || null);
+      }
+      toast('Item removido.', 'warning');
+    } catch (err) {
+      console.error("Erro ao deletar item:", err);
+      toast('Erro ao deletar item.', 'error');
     }
-    toast('Item removido.', 'warning');
   };
 
   const limparTudo = (isFundo) => {
@@ -301,17 +314,24 @@ function App() {
       danger: true,
       onConfirm: async () => {
         setConfirmModal(null);
-        if (isFundo) {
-          setFundos([]);
-          setFundoPaths([]);
-          setFundoPreview(null);
-          await localforage.setItem('db_fundos', []);
-        } else {
-          setEstampas([]);
-          setEstampaSel(null);
-          await localforage.setItem('db_estampas', []);
+        try {
+          if (isFundo) {
+            const ids = fundos.map(f => f.id);
+            setFundos([]);
+            setFundoPaths([]);
+            setFundoPreview(null);
+            await appDb.clearFundos(ids);
+          } else {
+            const ids = estampas.map(e => e.id);
+            setEstampas([]);
+            setEstampaSel(null);
+            await appDb.clearEstampas(ids);
+          }
+          toast(msg, 'error');
+        } catch (err) {
+          console.error("Erro ao limpar tudo:", err);
+          toast('Erro ao limpar a biblioteca.', 'error');
         }
-        toast(msg, 'error');
       },
     });
   };

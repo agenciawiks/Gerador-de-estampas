@@ -1,0 +1,515 @@
+﻿
+MANUAL OPERACIONAL
+Cadastro, ExportaÃ§Ã£o e AnÃºncios em Marketplace
+Camisetas Opressoras Â· Auri Verde Â· Timeline
+VersÃ£o 1.0  â€”  2026
+
+SumÃ¡rio
+1. VisÃ£o Geral do Sistema
+2. PadronizaÃ§Ã£o de SKU
+3. Ferramenta Interna â€” Gerador de Estampas
+4. GeraÃ§Ã£o de ConteÃºdo com IA (Gemini)
+5. CriaÃ§Ã£o de Produto no Tiny ERP (Do Zero)
+6. Clonagem de Produto (MÃ©todo Alternativo)
+7. Imagens e Mockups
+8. ExportaÃ§Ã£o para Marketplaces
+9. CriaÃ§Ã£o de AnÃºncio no Mercado Livre
+10. Regras de ConteÃºdo e Produtos SensÃ­veis
+11. Guia de Tamanhos e Medidas
+12. Regras Gerais e Boas PrÃ¡ticas
+
+1. VisÃ£o Geral do Sistema
+O coraÃ§Ã£o de toda a operaÃ§Ã£o Ã© o Olist / Tiny ERP. Ã‰ por ele que os produtos sÃ£o cadastrados, os estoques gerenciados, as notas fiscais emitidas e as integraÃ§Ãµes com marketplaces controladas.
+
+Lojas Operantes
+Loja
+Sigla
+Canal Principal
+Camisetas Opressoras
+OPR
+WBuy + Mercado Livre
+Auri Verde (Auriverde)
+AURI
+NuvemShop
+Timeline
+TIME
+A definir
+
+Fluxo Geral de um Produto Novo
+1. Gerar conteÃºdo (tÃ­tulo, descriÃ§Ã£o, NCM) usando o Gemini via Gerador de ERP
+2. Criar o produto do zero no Tiny ERP com todas as informaÃ§Ãµes
+3. Gerar e tratar as imagens/mockups
+4. Adicionar as imagens ao produto no Tiny
+5. Exportar para o(s) marketplace(s) correspondente(s)
+6. Verificar manualmente como o produto aparece no site
+7. Para Mercado Livre: criar anÃºncio direto na plataforma e importar para o Tiny depois
+
+â„¹ï¸  O Tiny possui integraÃ§Ã£o com Mercado Livre, NuvemShop e TikTok Shop, mas nem tudo Ã© automÃ¡tico. Sempre verifique no site do marketplace apÃ³s qualquer exportaÃ§Ã£o.
+
+2. PadronizaÃ§Ã£o de SKU
+O SKU Ã© o identificador Ãºnico de cada produto na plataforma. Uma vez definido e integrado, ele nÃ£o deve ser alterado â€” mudanÃ§as causam conflitos de estoque e problemas de sincronizaÃ§Ã£o.
+
+Formato Oficial
+Produto Pai:      LOJA-CAT-ID
+VariaÃ§Ãµes Filhas: geradas automaticamente pelo Olist (sufixo -0, -1, -2...)
+
+Exemplo real â€” camiseta nÂº 42 da Opressoras:
+Pai:      OPR-CAM-0042
+Filha P:  OPR-CAM-0042-0
+Filha M:  OPR-CAM-0042-1
+Filha G:  OPR-CAM-0042-2
+
+Siglas de Lojas
+Loja
+Sigla
+Camisetas Opressoras
+OPR
+Auri Verde
+AURI
+Timeline
+TIME
+
+Siglas de Categorias
+Categoria
+Sigla
+Camisetas e camisas
+CAM
+Canecas
+CAN
+Adesivos
+ADE
+Bottons
+BTN
+BonÃ©
+BON
+Chinelos
+CHI
+Bandeiras
+BAN
+MDF
+MDF
+Mousepad
+MP
+Caderno
+CAD
+Quadros
+QUA
+
+Regras
+Letras sempre maiÃºsculas
+Sem espaÃ§os ou acentos
+Separador: hÃ­fen (-)
+ID numÃ©rico com zero Ã  esquerda: 0001, 0042, 0100
+MÃ¡ximo de 50 caracteres
+O nome da estampa NÃƒO entra no SKU â€” vai nos campos de tÃ­tulo, tags e descriÃ§Ã£o
+ðŸš«  Nunca altere um SKU apÃ³s ele ter sido integrado a algum marketplace. Isso quebra o vÃ­nculo de estoque.
+
+Ferramenta de CriaÃ§Ã£o de SKU
+Use o mÃ³dulo Criador de SKU em gerador-de-estampas.vercel.app para gerar SKUs automaticamente. O botÃ£o 'Copiar & +1' jÃ¡ incrementa o ID para o prÃ³ximo produto, agilizando cadastros em sequÃªncia.
+
+3. Ferramenta Interna â€” Gerador de Estampas
+Acesse em: gerador-de-estampas.vercel.app
+A ferramenta possui cinco mÃ³dulos acessÃ­veis pelas abas na parte superior:
+
+MÃ³dulo 1 â€” Gerador de Mockups
+CompÃµe a estampa sobre o mockup de camiseta e exporta a imagem final.
+1. Na aba MOCKUPS, clique em 'Enviar Imagens' e carregue os fundos (fotos de camiseta)
+2. Na aba LOGOS, carregue as estampas (arquivos PNG com fundo transparente)
+3. Selecione o fundo e o logo desejados
+4. No painel direito, ajuste cor, escala e posiÃ§Ã£o da estampa
+5. Use as setas do teclado para mover 1px por vez (Shift = 10px)
+6. Clique em 'Exportar Foto Atual' para uma imagem ou 'Gerar Lote' para mÃºltiplos fundos de uma vez
+â„¹ï¸  O lote gera um arquivo ZIP com todas as combinaÃ§Ãµes. Ideal para criar variaÃ§Ãµes de mockup em sequÃªncia.
+
+MÃ³dulo 2 â€” Gerador de Prompt (Gemini)
+Gera o prompt de variaÃ§Ã£o de modelo fotogrÃ¡fico para usar no Gemini junto com uma foto de referÃªncia.
+1. Selecione gÃªnero, etnia, porte, cabelo, expressÃ£o, postura, fundo e enquadramento
+2. Clique em 'Gerar prompt para o Gemini'
+3. Copie o prompt gerado
+4. No Gemini, anexe a foto de referÃªncia e cole o prompt â€” o modelo variarÃ¡ o rosto/pessoa mantendo a roupa e posiÃ§Ã£o
+â„¹ï¸  Use esta funÃ§Ã£o para variar os modelos nas fotos de catÃ¡logo e evitar repetiÃ§Ã£o de rostos no site.
+
+MÃ³dulo 3 â€” Gerador de ERP
+Monta o prompt formatado para o chat Gemini ERP (nos chats 'CAMISETAS ERP' ou 'CAMISETAS ERP 2' da AgÃªncia Wiks).
+1. Selecione o tipo de produto e a marca/loja
+2. Informe o nome da estampa
+3. Selecione materiais, cores e tamanhos
+4. Adicione observaÃ§Ãµes adicionais se necessÃ¡rio
+5. Clique em 'Gerar Formato ERP' e copie o resultado
+6. Cole no chat Gemini ERP para obter tÃ­tulo SEO, descriÃ§Ã£o, NCM e meta tags
+â„¹ï¸  Para produtos de vestuÃ¡rio, a frase obrigatÃ³ria de medidas Ã© adicionada automaticamente ao resultado.
+âš ï¸  Aviso de conteÃºdo polÃ­tico aparece automaticamente quando a marca Camisetas Opressoras Ã© selecionada ou quando palavras polÃ­ticas sÃ£o detectadas no nome da estampa.
+
+MÃ³dulo 4 â€” Criador de SKU
+Gera o SKU do produto pai no formato padronizado OPR-CAT-ID.
+1. Selecione a loja e a categoria
+2. Informe o nÃºmero sequencial (ID)
+3. ColeÃ§Ã£o/ano Ã© opcional â€” deixe em branco se nÃ£o houver
+4. Clique em 'Copiar SKU' ou 'Copiar & +1' para jÃ¡ ir para o prÃ³ximo nÃºmero
+â„¹ï¸  O histÃ³rico dos Ãºltimos 15 SKUs gerados fica disponÃ­vel na parte inferior do mÃ³dulo para consulta rÃ¡pida.
+
+âš™ï¸ AtualizaÃ§Ãµes Pendentes na Ferramenta
+âš ï¸  As seguintes melhorias ainda precisam ser implementadas no site:
+Atualizar o Criador de SKU para refletir o novo padrÃ£o (sem nome de estampa no SKU, siglas OPR/AURI/TIME)
+Adicionar mÃ³dulo especÃ­fico para Mercado Livre (checklist de atributos obrigatÃ³rios, geraÃ§Ã£o de tÃ­tulo adaptado)
+
+4. GeraÃ§Ã£o de ConteÃºdo com IA (Gemini)
+O Gemini Ã© usado para gerar os textos do produto: tÃ­tulo otimizado para SEO, descriÃ§Ã£o persuasiva, NCM, CFOP e meta tags.
+
+Onde Acessar
+Acesse o Gemini pelos chats 'CAMISETAS ERP' ou 'CAMISETAS ERP 2' dentro da conta da AgÃªncia Wiks.
+
+Como Gerar o Prompt
+Use o mÃ³dulo Gerador de ERP da ferramenta interna (descrito na seÃ§Ã£o anterior) para montar o prompt corretamente. O formato base Ã©:
+# NOVO PRODUTO:
+- PRODUTO: Camiseta
+- MARCA: Camisetas Opressoras
+- ESTAMPA: [Nome da Estampa]
+- COR: Preto, Branco
+- TAMANHOS: P, M, G, GG, XG, EXG
+- MATERIAL: PV Premium
+
+# OBSERVAÃ‡Ã•ES:
+Recomendamos verificar atentamente as medidas...
+
+O que o Gemini retorna
+TÃ­tulo otimizado para SEO (com palavras-chave relevantes)
+DescriÃ§Ã£o persuasiva do produto
+NCM (cÃ³digo fiscal â€” sugestÃ£o, nÃ£o definitivo)
+CFOP
+Meta tags
+âš ï¸  O NCM gerado pelo Gemini Ã© uma sugestÃ£o. Em caso de dÃºvida sobre classificaÃ§Ã£o fiscal, consulte a equipe.
+
+5. CriaÃ§Ã£o de Produto no Tiny ERP (Do Zero)
+A criaÃ§Ã£o do zero Ã© o mÃ©todo preferido. Garante que todas as informaÃ§Ãµes sejam preenchidas corretamente e evita que dados de outros produtos sejam herdados por engano.
+
+Acesso
+Abra o Chrome com o perfil 'Camisetas (Wilker)' â†’ Menu â†’ Cadastros â†’ Produtos â†’ Novo Produto.
+
+Passo a Passo Completo
+Etapa 1 â€” InformaÃ§Ãµes Gerais
+1. Cole o tÃ­tulo gerado pelo Gemini no campo Nome/TÃ­tulo
+2. Preencha o campo Marca com a loja correspondente (Camisetas Opressoras, Auriverde ou Timeline)
+3. Preencha o SKU do produto pai no formato OPR-CAT-0001 (use o Criador de SKU)
+4. Preencha o NCM sugerido pelo Gemini
+5. Preencha a descriÃ§Ã£o gerada pelo Gemini
+6. Adicione a tag da loja para facilitar filtragem interna (ex: opressoras, auriverde ou timeline)
+
+Etapa 2 â€” Categorias
+1. Preencha a categoria do produto
+2. Se precisar ajustar categorias maiores depois, faÃ§a de forma a nÃ£o atrapalhar produtos jÃ¡ existentes
+
+Etapa 3 â€” VariaÃ§Ãµes
+1. VÃ¡ para a seÃ§Ã£o de VariaÃ§Ãµes do produto
+2. Crie a grade de tamanhos: P, M, G, GG, XG, EXG
+3. Para cada tamanho, preencha o estoque na seÃ§Ã£o de estoque (veja Etapa 5)
+â„¹ï¸  As variaÃ§Ãµes filhas recebem automaticamente o SKU do pai com sufixo -0, -1, -2 etc. NÃ£o Ã© necessÃ¡rio preencher manualmente.
+
+Etapa 4 â€” PreÃ§o
+1. Consulte produtos existentes da mesma loja como referÃªncia de preÃ§o
+2. Se for um produto totalmente novo sem referÃªncia, deixe em branco e aguarde definiÃ§Ã£o da equipe
+
+Etapa 5 â€” Estoque
+1. Salve o produto primeiro (sem imagens ainda)
+2. VÃ¡ em Menu â†’ Suprimentos â†’ Controle de Estoques â†’ Gerenciar InventÃ¡rio
+3. Localize o produto e lance a quantidade real disponÃ­vel de cada variaÃ§Ã£o
+4. O estoque mÃ­nimo padrÃ£o Ã© 150 unidades
+
+Etapa 6 â€” Imagens
+âš ï¸  SÃ³ adicione imagens DEPOIS de salvar e preencher todas as informaÃ§Ãµes textuais. Adicionar antes pode causar erros no sistema.
+1. Acesse o produto salvo e vÃ¡ para a seÃ§Ã£o de Imagens
+2. FaÃ§a upload das imagens no formato JPG
+3. A primeira imagem deve ser o mockup principal (frente da camiseta com a estampa)
+4. Adicione atÃ© 10 imagens por produto
+
+Etapa 7 â€” RevisÃ£o Final
+âœ…  TÃ­tulo preenchido e otimizado
+âœ…  SKU no formato correto (OPR-CAT-0001)
+âœ…  Tag da loja adicionada
+âœ…  VariaÃ§Ãµes criadas (P, M, G, GG, XG, EXG)
+âœ…  Estoque lanÃ§ado
+âœ…  PreÃ§o definido
+âœ…  Imagens adicionadas
+âœ…  DescriÃ§Ã£o termina com a frase obrigatÃ³ria de medidas
+
+6. Clonagem de Produto (MÃ©todo Alternativo)
+A clonagem pode ser usada quando um produto Ã© muito similar a outro jÃ¡ existente e vocÃª deseja reaproveitar configuraÃ§Ãµes. PorÃ©m, exige atenÃ§Ã£o redobrada.
+
+Quando usar
+Produto idÃªntico a outro em material, tipo e grade, mas com estampa diferente
+Nunca clone para criar produtos de outra loja ou categoria diferente
+
+Passo a Passo
+1. Localize o produto base e clique em Clonar
+2. Desmarque 'Clonar anexos' â€” as imagens do produto original nÃ£o devem ser herdadas
+3. Atualize o SKU do produto clonado para o prÃ³ximo nÃºmero disponÃ­vel no formato correto
+4. Atualize o tÃ­tulo, descriÃ§Ã£o e tag conforme a nova estampa
+ðŸš«  OBRIGATÃ“RIO: Apague TODAS as variaÃ§Ãµes existentes e crie do zero. A clonagem mantÃ©m os SKUs originais das variaÃ§Ãµes, causando conflito de estoque.
+5. Recrie as variaÃ§Ãµes de tamanho (P, M, G, GG, XG, EXG)
+6. Defina o estoque mÃ­nimo como 150
+7. Adicione as novas imagens
+âš ï¸  A clonagem Ã© mais rÃ¡pida mas abre mais margem para erros. Prefira criar do zero sempre que possÃ­vel.
+
+7. Imagens e Mockups
+Fluxo de CriaÃ§Ã£o de Imagens
+1. Use o mÃ³dulo Gerador de Mockups da ferramenta interna para compor a estampa sobre o fundo de camiseta
+2. Para fotos com modelo: envie a foto do mockup base + foto de uma pessoa aleatÃ³ria para o Gemini. PeÃ§a para 'alterar um pouco o rosto da pessoa' para evitar repetiÃ§Ã£o no site
+3. Abra o template 'PRODUTO SITE' no Photoshop
+4. Insira a imagem gerada, redimensione conforme o template
+5. Use o Preenchimento Generativo para remover marcas ou erros deixados pela IA
+6. Exporte com: CTRL + SHIFT + ALT + S â†’ Formato JPG â†’ Qualidade 70%
+
+â„¹ï¸  O formato JPG a 70% de qualidade Ã© obrigatÃ³rio. Otimiza SEO, melhora velocidade da loja e economiza banda sem perda visual perceptÃ­vel.
+
+EspecificaÃ§Ãµes de Upload
+Formato aceito: JPG, JPEG, PNG ou WEBP
+DimensÃ£o mÃ­nima: 500px em qualquer lado
+Tamanho mÃ¡ximo: 10MB por imagem
+MÃ¡ximo de 10 imagens por produto
+A primeira imagem Ã© a principal (exibida nos resultados de busca)
+
+8. ExportaÃ§Ã£o para Marketplaces
+ApÃ³s o produto estar completo no Tiny, ele pode ser exportado para os marketplaces integrados.
+
+Regra de Estoque por Loja
+âš ï¸  Esta configuraÃ§Ã£o Ã© crÃ­tica. Um erro aqui pode desativar ou duplicar estoques nos marketplaces.
+
+Loja
+Marketplace
+Atualizar Estoque no E-commerce
+Camisetas Opressoras
+WBuy / Mercado Livre
+âœ… ATIVADO
+Auri Verde
+NuvemShop
+ðŸš« DESATIVADO
+
+Passo a Passo da ExportaÃ§Ã£o
+1. Acesse o produto no Tiny
+2. Clique em Exportar / Integrar com Marketplace
+3. Selecione o canal de destino
+4. Configure a opÃ§Ã£o de estoque conforme a tabela acima
+5. Confirme a exportaÃ§Ã£o
+6. Acesse o site/marketplace e verifique como o produto aparece para o cliente
+
+AtenÃ§Ã£o: WBuy exige ajustes manuais
+Algumas alteraÃ§Ãµes feitas no Tiny NÃƒO sÃ£o refletidas automaticamente na WBuy. ApÃ³s exportar, acesse diretamente o painel da WBuy para:
+Vincular manualmente as categorias do produto
+Vincular as imagens por cor (quando aplicÃ¡vel)
+â„¹ï¸  FaÃ§a esses ajustes logo apÃ³s a exportaÃ§Ã£o para nÃ£o esquecer.
+
+Regra de Ouro
+ðŸš«  Nunca confie 100% no ERP. ApÃ³s qualquer exportaÃ§Ã£o, abra o site e veja o produto como o cliente vÃª. Erros de integraÃ§Ã£o sÃ£o comuns e silenciosos.
+
+9. CriaÃ§Ã£o de AnÃºncio no Mercado Livre
+O fluxo atual para o Mercado Livre Ã© criar o anÃºncio diretamente na plataforma e depois importar para o Tiny â€” e nÃ£o o contrÃ¡rio. Isso ocorre porque o Tiny estÃ¡ em processo de atualizaÃ§Ã£o e o fluxo de exportaÃ§Ã£o inverso ainda estÃ¡ sendo definido.
+âš ï¸  Este processo estÃ¡ em evoluÃ§Ã£o. A seÃ§Ã£o serÃ¡ atualizada quando o fluxo via Tiny for consolidado.
+
+Tipo de AnÃºncio e Frete
+Tipo: AnÃºncio Premium
+Frete: GrÃ¡tis (o custo do frete Ã© absorvido pelo vendedor)
+
+Passo a Passo â€” CriaÃ§Ã£o no Mercado Livre
+1. Acesse o Mercado Livre com a conta da loja correspondente
+2. Clique em 'Vender' â†’ 'Criar anÃºncio'
+3. Busque pela categoria 'Camisetas' ou selecione manualmente
+4. Preencha o tÃ­tulo (veja regras abaixo)
+5. Selecione o tipo de anÃºncio: Premium
+6. Configure o frete como GrÃ¡tis
+
+Atributos ObrigatÃ³rios do Mercado Livre
+Campo
+O que preencher
+Marca
+Nome da loja (Ex: Camisetas Opressoras)
+Modelo
+Pode ser o nome da estampa ou 'Unissex'
+GÃªnero
+Masculino, Feminino ou Unissex
+Tipo de Roupa
+Camiseta
+Tipo de Manga
+Manga Curta (ou conforme o produto)
+Cor
+Cor principal (no masculino: Preto, Branco...)
+Tamanho
+Tamanho da variaÃ§Ã£o principal
+Estoque
+Quantidade disponÃ­vel por variaÃ§Ã£o
+SKU
+Usar o SKU do produto (OPR-CAM-0001)
+GTIN/EAN
+Indicar que o produto nÃ£o possui
+
+CaracterÃ­sticas SecundÃ¡rias (preencher com 'NÃ£o se aplica' quando disponÃ­vel)
+Ã‰ esportiva
+Usos recomendados
+Tipo de tecido
+ComposiÃ§Ã£o
+Material principal
+Tipo de Gola
+Forma de caimento
+Ã‰ apta para gestaÃ§Ã£o
+Com materiais reciclados
+
+Tamanhos no Mercado Livre
+O ML pode nÃ£o reconhecer 'EXG'. Verifique se a plataforma tem essa opÃ§Ã£o. Se nÃ£o tiver, use o equivalente disponÃ­vel (ex: G3). Consulte sempre a grade disponÃ­vel na plataforma antes de cadastrar.
+
+TÃ­tulo no Mercado Livre
+NÃ£o inclua dados de contato, condiÃ§Ãµes de venda, parcelamento ou frete grÃ¡tis no tÃ­tulo
+Use palavras-chave relevantes: nome do produto, tema/estampa, material
+Limite de caracteres da plataforma deve ser respeitado
+
+Fotos no Mercado Livre
+Formato: JPG, JPEG, PNG ou WEBP
+DimensÃ£o mÃ­nima: 500px em qualquer lado
+MÃ¡ximo: 10MB por imagem e atÃ© 10 fotos
+
+Formato de Venda e Garantia
+Formato de venda: Unidade
+Garantia: Garantia do vendedor (definir prazo padrÃ£o com a equipe)
+
+ApÃ³s Criar o AnÃºncio no ML
+1. Copie o link ou ID do anÃºncio criado
+2. No Tiny, use a ferramenta de ImportaÃ§Ã£o para vincular o anÃºncio ao produto cadastrado no ERP
+3. Verifique se estoque e preÃ§o estÃ£o sincronizados
+â„¹ï¸  O processo de importaÃ§Ã£o do ML para o Tiny estÃ¡ sendo documentado e serÃ¡ detalhado em versÃ£o futura deste manual Ã  medida que o fluxo for consolidado.
+
+10. Regras de ConteÃºdo e Produtos SensÃ­veis
+Produtos com cunho polÃ­tico, religioso ou polÃªmico podem ser removidos ou ter o anÃºncio bloqueado em determinadas plataformas. ConheÃ§a as regras de cada canal.
+
+NÃ­vel de RestriÃ§Ã£o por Canal
+Plataforma
+NÃ­vel de RestriÃ§Ã£o
+ObservaÃ§Ã£o
+Tiny ERP
+Baixo
+Apenas armazenamento â€” sem moderaÃ§Ã£o
+WBuy
+Baixo
+Mais permissivo â€” revisar mesmo assim
+NuvemShop
+Baixo
+Mais permissivo â€” revisar mesmo assim
+Mercado Livre
+MÃ©dio/Alto
+SupervisÃ£o automÃ¡tica â€” risco de remoÃ§Ã£o
+TikTok Shop
+Alto
+RestriÃ§Ãµes rÃ­gidas â€” maior risco de bloqueio
+Shopee
+MÃ©dio/Alto
+SupervisÃ£o ativa
+
+Produtos com HistÃ³rico de Problema
+Os produtos abaixo jÃ¡ tiveram anÃºncios removidos ou bloqueados em algum canal:
+Botton â€” Freedom, Liberdade, Libertad
+Mousepad â€” Acorda, Brasil!
+Mousepad â€” A Nossa Bandeira Jamais SerÃ¡ Vermelha
+Mousepad â€” PÃ¡tria Amada, Brasil
+Mousepad â€” Deus, PÃ¡tria, FamÃ­lia E Liberdade
+Mousepad â€” Free Bolsonaro
+
+Como Contornar
+Produtos sensÃ­veis podem ser adaptados para passar pela moderaÃ§Ã£o automÃ¡tica das plataformas:
+Adaptar o tÃ­tulo: remover palavras que ativam filtros polÃ­ticos
+Adaptar a descriÃ§Ã£o: usar linguagem mais neutra e focada no produto
+Adaptar a imagem: evitar textos explÃ­citos ou sÃ­mbolos polÃ­ticos em destaque
+âš ï¸  A adaptaÃ§Ã£o Ã© vÃ¡lida e comum, mas deve ser feita com cuidado. O produto em si nÃ£o muda â€” apenas a forma como Ã© apresentado na plataforma.
+
+11. Guia de Tamanhos e Medidas
+Todos os tamanhos sÃ£o em centÃ­metros. As medidas abaixo sÃ£o padrÃ£o para todas as lojas (Opressoras, Auri Verde e Timeline).
+
+Camiseta Unissex
+Tamanho
+Comprimento (cm)
+Largura (cm)
+P
+64
+47
+M
+67
+52
+G
+72
+55
+GG
+76
+58
+XG
+80
+62
+EXG
+83
+65
+
+Camiseta Polo Unissex
+Tamanho
+Comprimento (cm)
+Largura (cm)
+P
+66
+50
+M
+67
+51
+G
+73
+55
+GG
+77
+59
+XG
+80
+62
+EXG
+85
+65
+
+Grade PadrÃ£o de Tamanhos
+A grade padrÃ£o usada em todos os produtos de vestuÃ¡rio Ã©:
+P  â€”  M  â€”  G  â€”  GG  â€”  XG  â€”  EXG
+â„¹ï¸  No Tiny ERP e demais plataformas internas, use sempre 'EXG'. Apenas adapte para o equivalente da plataforma (ex: XGG, G3) quando o marketplace nÃ£o reconhecer EXG.
+
+Toda descriÃ§Ã£o de peÃ§a de vestuÃ¡rio deve terminar obrigatoriamente com:
+Recomendamos verificar atentamente as medidas do produto antes da compra para garantir o tamanho ideal.
+â„¹ï¸  O Gerador de ERP da ferramenta interna adiciona essa frase automaticamente para produtos de vestuÃ¡rio.
+
+12. Regras Gerais e Boas PrÃ¡ticas
+
+Nomenclatura de Cores
+Cores sempre no masculino em todos os campos e plataformas:
+âŒ Errado
+âœ… Correto
+Branca
+Branco
+Preta
+Preto
+Vermelha
+Vermelho
+Amarela
+Amarelo
+Verde (ok)
+Verde
+
+GestÃ£o de Produtos
+ðŸš«  Nunca apague um produto que jÃ¡ foi comprado. Crie um produto novo com um novo SKU.
+âœ…  Produtos que nunca tiveram vendas podem ser apagados.
+âœ…  Ao criar produto novo, sempre adicione a tag da loja (opressoras / auriverde / timeline).
+âœ…  Preencha e salve o produto completamente antes de adicionar imagens.
+
+ApÃ³s Qualquer PublicaÃ§Ã£o
+ðŸš«  Nunca confie 100% no ERP. Sempre verifique o produto no site/marketplace apÃ³s exportar.
+Veja como a imagem aparece
+Confirme se todas as variaÃ§Ãµes estÃ£o visÃ­veis
+Teste se o preÃ§o e frete estÃ£o corretos
+Verifique se o estoque estÃ¡ sincronizado
+
+Acesso ao Tiny
+Acesse sempre pelo Chrome com o perfil correto ('Camisetas (Wilker)'). NÃ£o use outros perfis ou navegadores para evitar problemas de sessÃ£o.
+
+Nomenclatura Interna
+Ao se referir ao produto internamente (em tags, chats ou planilhas), use sempre o nome da estampa â€” nÃ£o o SKU. O SKU Ã© para o sistema; o nome Ã© para as pessoas.
+
+
+Manual Operacional â€” v1.0 â€” 2026 â€” Uso interno

@@ -3,8 +3,8 @@ import { Copy, Hash, Plus, Minus, RotateCcw, Trash2, CheckCircle2, History } fro
 
 // Predefined Stores from the Guide
 const LOJAS_PREDEFINIDAS = [
-  { label: "Camisetas Opressoras", value: "OPRESSORAS" },
-  { label: "Auriverde", value: "AURI" },
+  { label: "Camisetas Opressoras", value: "OPR" },
+  { label: "Auri Verde", value: "AURI" },
   { label: "Timeline", value: "TIME" },
 ];
 
@@ -35,7 +35,7 @@ const normalizarModelo = (texto: string): string => {
 };
 
 export default function CriadorDeSKU() {
-  const [loja, setLoja] = useState("OPRESSORAS");
+  const [loja, setLoja] = useState("OPR");
   const [customLoja, setCustomLoja] = useState("");
   
   const [categoria, setCategoria] = useState("CAM");
@@ -44,7 +44,6 @@ export default function CriadorDeSKU() {
   const [colecao, setColecao] = useState("");
   const [idSeq, setIdSeq] = useState(1);
   const [padSize, setPadSize] = useState(2);
-  const [modelo, setModelo] = useState("");
   
   const [skuGerado, setSkuGerado] = useState("");
   const [historico, setHistorico] = useState<string[]>([]);
@@ -68,20 +67,18 @@ export default function CriadorDeSKU() {
     const finalCat = (categoria === "OUTRA" ? normalizarModelo(customCategoria) : categoria).trim();
     const finalColecao = normalizarModelo(colecao).trim();
     const finalId = String(idSeq).padStart(padSize, "0");
-    const finalModelo = normalizarModelo(modelo).trim();
 
     // Assemble parts
-    // FORMATO: LOJA-CAT-COLECAO-ID-MODELO
+    // FORMATO: LOJA-CAT-COLECAO-ID
     // (campos opcionais como COLECAO não utilizados devem ser omitidos)
     const partes: string[] = [];
     if (finalLoja) partes.push(finalLoja);
     if (finalCat) partes.push(finalCat);
     if (finalColecao) partes.push(finalColecao);
     partes.push(finalId);
-    if (finalModelo) partes.push(finalModelo);
 
     setSkuGerado(partes.join("-"));
-  }, [loja, customLoja, categoria, customCategoria, colecao, idSeq, padSize, modelo]);
+  }, [loja, customLoja, categoria, customCategoria, colecao, idSeq, padSize]);
 
   const copiarSku = (incremental: boolean = false) => {
     if (!skuGerado) return;
@@ -110,13 +107,12 @@ export default function CriadorDeSKU() {
   };
 
   const resetarForm = () => {
-    setLoja("OPRESSORAS");
+    setLoja("OPR");
     setCustomLoja("");
     setCategoria("CAM");
     setCustomCategoria("");
     setColecao("");
     setIdSeq(1);
-    setModelo("");
   };
 
   const inputClass =
@@ -281,23 +277,7 @@ export default function CriadorDeSKU() {
         </div>
       </div>
 
-      {/* Modelo */}
-      <div className="flex flex-col gap-2 mb-6">
-        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-          <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
-          Modelo / Nome da Estampa
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: BOLSONARO, LULA, COPA BRASIL, CAVEIRA"
-          value={modelo}
-          onChange={(e) => setModelo(e.target.value)}
-          className={inputClass}
-        />
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
-          O texto será formatado automaticamente: <strong>sem acentos</strong>, letras <strong>MAIÚSCULAS</strong> e espaços trocados por <strong>hífens (-)</strong>.
-        </span>
-      </div>
+      {/* Removido o campo de Modelo/Nome da Estampa por não fazer mais parte do SKU */}
 
       {/* SKU Live Preview Card */}
       <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
