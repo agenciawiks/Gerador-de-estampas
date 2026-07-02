@@ -233,5 +233,64 @@ export const appDb = {
     if (!isFirebaseConfigured) {
       await localforage.setItem('db_estampas', []);
     }
+  },
+
+  // ── SKUs ───────────────────────────────────────────────────────────────────
+  async loadSkus() {
+    if (isFirebaseConfigured) {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'skus'));
+        const skus = [];
+        querySnapshot.forEach((doc) => {
+          skus.push({ id: doc.id, ...doc.data() });
+        });
+        // Ordena por data de criação decrescente (mais recente primeiro)
+        return skus.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      } catch (error) {
+        console.error("Erro ao carregar SKUs do Firebase:", error);
+      }
+    }
+    return (await localforage.getItem('db_skus')) || [];
+  },
+
+  async saveSku(skuObj) {
+    if (isFirebaseConfigured) {
+      try {
+        const skuData = {
+          ...skuObj,
+          createdAt: Date.now()
+        };
+        await setDoc(doc(db, 'skus', skuObj.id), skuData);
+        return skuData;
+      } catch (error) {
+        console.error("Erro ao salvar SKU no Firebase:", error);
+        throw error;
+      }
+    }
+
+    // Fallback LocalForage
+    const skuData = { ...skuObj, createdAt: Date.now() };
+    const list = (await localforage.getItem('db_skus')) || [];
+    // Evita duplicatas pelo ID
+    const newList = [skuData, ...list.filter(item => item.id !== skuObj.id)];
+    await localforage.setItem('db_skus', newList);
+    return skuData;
+  },
+
+  async deleteSku(id) {
+    if (isFirebaseConfigured) {
+      try {
+        await deleteDoc(doc(db, 'skus', id));
+        return;
+      } catch (error) {
+        console.error("Erro ao deletar SKU do Firebase:", error);
+        throw error;
+      }
+    }
+
+    // Fallback LocalForage
+    const list = (await localforage.getItem('db_skus')) || [];
+    const newList = list.filter(item => item.id !== id);
+    await localforage.setItem('db_skus', newList);
   }
 };

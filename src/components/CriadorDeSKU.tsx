@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Copy, Hash, Plus, Minus, RotateCcw, Trash2, CheckCircle2, History } from "lucide-react";
+import { Copy, Hash, Plus, Minus, RotateCcw, Trash2, CheckCircle2, History, RefreshCw, Undo2 } from "lucide-react";
+import { appDb } from "../db";
 
 // Predefined Stores from the Guide
 const LOJAS_PREDEFINIDAS = [
@@ -22,6 +23,19 @@ const CATEGORIAS_PREDEFINIDAS = [
   { label: "Caderno", value: "CAD" },
   { label: "Quadros", value: "QUA" },
 ];
+
+interface SkuItem {
+  id: string;
+  sku: string;
+  loja: string;
+  customLoja?: string;
+  categoria: string;
+  customCategoria?: string;
+  colecao: string;
+  idSeq: number;
+  padSize: number;
+  createdAt: number;
+}
 
 // Accent and special character removal utility
 const normalizarModelo = (texto: string): string => {
@@ -46,19 +60,21 @@ export default function CriadorDeSKU() {
   const [padSize, setPadSize] = useState(2);
   
   const [skuGerado, setSkuGerado] = useState("");
-  const [historico, setHistorico] = useState<string[]>([]);
+  const [historico, setHistorico] = useState<SkuItem[]>([]);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "copied_inc">("idle");
+  const [skuCopiadoId, setSkuCopiadoId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // Load history from localStorage on mount
+  // Load history from db on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("sku_history");
-      if (saved) {
-        setHistorico(JSON.parse(saved));
+    (async () => {
+      try {
+        const saved = await appDb.loadSkus();
+        setHistorico(saved);
+      } catch (e) {
+        console.error("Erro ao carregar histórico de SKUs:", e);
       }
-    } catch (e) {
-      console.error("Erro ao carregar histórico de SKUs:", e);
-    }
+    })();
   }, []);
 
   // Update generated SKU dynamically in real time
@@ -70,7 +86,6 @@ export default function CriadorDeSKU() {
 
     // Assemble parts
     // FORMATO: LOJA-CAT-COLECAO-ID
-    // (campos opcionais como COLECAO não utilizados devem ser omitidos)
     const partes: string[] = [];
     if (finalLoja) partes.push(finalLoja);
     if (finalCat) partes.push(finalCat);
@@ -82,15 +97,29 @@ export default function CriadorDeSKU() {
 
   const copiarSku = (incremental: boolean = false) => {
     if (!skuGerado) return;
-    navigator.clipboard.writeText(skuGerado).then(() => {
+    navigator.clipboard.writeText(skuGerado).then(async () => {
       setCopyStatus(incremental ? "copied_inc" : "copied");
       
-      // Add to history if not already present in the last position
-      setHistorico((prev) => {
-        const novoHist = [skuGerado, ...prev.filter((x) => x !== skuGerado)].slice(0, 15);
-        localStorage.setItem("sku_history", JSON.stringify(novoHist));
-        return novoHist;
-      });
+      const newSkuItem: SkuItem = {
+        id: skuGerado, // Usamos o SKU gerado como identificador único
+        sku: skuGerado,
+        loja,
+        customLoja,
+        categoria,
+        customCategoria,
+        colecao,
+        idSeq,
+        padSize,
+        createdAt: Date.now()
+      };
+
+      try {
+        await appDb.saveSku(newSkuItem);
+        const updated = await appDb.loadSkus();
+        setHistorico(updated);
+      } catch (err) {
+        console.error("Erro ao persistir SKU:", err);
+      }
 
       if (incremental) {
         // Increment ID
@@ -101,9 +130,41 @@ export default function CriadorDeSKU() {
     });
   };
 
-  const limparHistorico = () => {
-    setHistorico([]);
-    localStorage.removeItem("sku_history");
+  const copiarSkuHistorico = (itemSku: string) => {
+    navigator.clipboard.writeText(itemSku).then(() => {
+      setSkuCopiadoId(itemSku);
+      setTimeout(() => setSkuCopiadoId(null), 1500);
+    });
+  };
+
+  const reutilizarParametros = (item: SkuItem) => {
+    setLoja(item.loja);
+    if (item.customLoja) setCustomLoja(item.customLoja);
+    setCategoria(item.categoria);
+    if (item.customCategoria) setCustomCategoria(item.customCategoria);
+    setColecao(item.colecao);
+    setIdSeq(item.idSeq);
+    setPadSize(item.padSize);
+  };
+
+  const deletarSku = async (id: string) => {
+    if (deleteConfirmId !== id) {
+      setDeleteConfirmId(id);
+      // Cancela a confirmação em 3 segundos se não clicar novamente
+      setTimeout(() => {
+        setDeleteConfirmId(prev => prev === id ? null : prev);
+      }, 3000);
+      return;
+    }
+
+    try {
+      await appDb.deleteSku(id);
+      setDeleteConfirmId(null);
+      const updated = await appDb.loadSkus();
+      setHistorico(updated);
+    } catch (err) {
+      console.error("Erro ao deletar SKU:", err);
+    }
   };
 
   const resetarForm = () => {
@@ -154,33 +215,38 @@ export default function CriadorDeSKU() {
               onChange={(e) => setLoja(e.target.value)}
               className={selectClass}
             >
-              {LOJAS_PREDEFINIDAS.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label} ({l.value})
+              {LOJAS_PREDEFINIDAS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
-              <option value="OUTRA">Outra Loja...</option>
+              <option value="OUTRA">Outra (Personalizada)...</option>
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
-              <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-            </div>
           </div>
-          {loja === "OUTRA" && (
+        </div>
+
+        {/* Custom Loja (condicional) */}
+        {loja === "OUTRA" && (
+          <div className="flex flex-col gap-2 mb-4">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
+              Apelido da Loja
+            </label>
             <input
               type="text"
-              placeholder="Digite a sigla da loja (Ex: TIME)"
+              placeholder="Ex: LOJAPROPRIA (Max 5 letras)"
               value={customLoja}
-              onChange={(e) => setCustomLoja(e.target.value)}
-              className={`${inputClass} mt-2`}
+              onChange={(e) => setCustomLoja(e.target.value.substring(0, 10))}
+              className={inputClass}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Categoria */}
         <div className="flex flex-col gap-2 mb-4">
           <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
-            Categoria
+            Categoria de Produto
           </label>
           <div className="relative">
             <select
@@ -188,115 +254,104 @@ export default function CriadorDeSKU() {
               onChange={(e) => setCategoria(e.target.value)}
               className={selectClass}
             >
-              {CATEGORIAS_PREDEFINIDAS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label} ({c.value})
+              {CATEGORIAS_PREDEFINIDAS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
-              <option value="OUTRA">Outra Categoria...</option>
+              <option value="OUTRA">Outra (Personalizada)...</option>
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
-              <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-            </div>
           </div>
-          {categoria === "OUTRA" && (
+        </div>
+
+        {/* Custom Categoria (condicional) */}
+        {categoria === "OUTRA" && (
+          <div className="flex flex-col gap-2 mb-4">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
+              Código da Categoria
+            </label>
             <input
               type="text"
-              placeholder="Digite a sigla da categoria (Ex: BON)"
+              placeholder="Ex: MOLETOM -> MOL"
               value={customCategoria}
-              onChange={(e) => setCustomCategoria(e.target.value)}
-              className={`${inputClass} mt-2`}
+              onChange={(e) => setCustomCategoria(e.target.value.substring(0, 5))}
+              className={inputClass}
             />
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-        {/* Coleção (Opcional) */}
+        {/* Coleção */}
         <div className="flex flex-col gap-2 mb-4">
           <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
-            Coleção / Ano (Opcional)
+            Nome da Coleção (Opcional)
           </label>
           <input
             type="text"
-            placeholder="Ex: 2026, VERAO, COPA"
+            placeholder="Ex: PATRIOTAS, INVERNO26"
             value={colecao}
             onChange={(e) => setColecao(e.target.value)}
             className={inputClass}
           />
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
-            Ano, estação ou nome especial. Deixe em branco se não houver.
-          </span>
         </div>
 
-        {/* Sequência / ID */}
+        {/* Sequência ID e Pad */}
         <div className="flex flex-col gap-2 mb-4">
           <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
-            Identificador (ID Numérico)
+            Número Sequencial ID
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2 items-center">
             <button
               onClick={() => setIdSeq((prev) => Math.max(1, prev - 1))}
-              className={`${btnClass} bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-300`}
+              className={`${btnClass} bg-red-500/10 border-red-500/30 hover:bg-red-500/20 text-red-500`}
             >
-              <Minus size={14} />
+              <Minus size={15} />
             </button>
             <input
               type="number"
-              min="1"
+              min={1}
               value={idSeq}
               onChange={(e) => setIdSeq(Math.max(1, parseInt(e.target.value) || 1))}
-              className={`${inputClass} text-center font-mono`}
+              className="w-20 text-center font-bold px-2 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
             />
             <button
               onClick={() => setIdSeq((prev) => prev + 1)}
-              className={`${btnClass} bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-300`}
+              className={`${btnClass} bg-green-500/10 border-green-500/30 hover:bg-green-500/20 text-green-500`}
             >
-              <Plus size={14} />
+              <Plus size={15} />
             </button>
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">
-              Digito incremental para unicidade do produto.
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-400">Casas decimais:</span>
-              <select
-                value={padSize}
-                onChange={(e) => setPadSize(parseInt(e.target.value))}
-                className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-0.5 focus:outline-none"
-              >
-                <option value="1">1 (1)</option>
-                <option value="2">2 (01)</option>
-                <option value="3">3 (001)</option>
-              </select>
-            </div>
+
+            <select
+              value={padSize}
+              onChange={(e) => setPadSize(parseInt(e.target.value))}
+              title="Quantidade de zeros à esquerda"
+              className="ml-2 font-mono text-xs px-2.5 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+            >
+              <option value={1}>ID (1)</option>
+              <option value={2}>ID (01)</option>
+              <option value={3}>ID (001)</option>
+              <option value={4}>ID (0001)</option>
+            </select>
           </div>
         </div>
       </div>
-
-      {/* Removido o campo de Modelo/Nome da Estampa por não fazer mais parte do SKU */}
 
       {/* SKU Live Preview Card */}
       <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center">
-              <span className="text-orange-600 dark:text-orange-400 font-bold mb-1">↳</span>
-            </div>
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-              Visualização em tempo real do SKU
-            </p>
+            <CheckCircle2 size={16} className="text-orange-500" />
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Visualização em Tempo Real
+            </h3>
           </div>
-          
-          {/* Character counter */}
-          <div className="flex items-center gap-1.5">
-            <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${
-              isExceeded
-                ? "bg-red-500/10 border-red-500 text-red-500 dark:text-red-400 animate-pulse"
-                : "bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400"
+          <div>
+            <span className={`text-xs font-bold font-mono px-2.5 py-1 rounded-full ${
+              isExceeded 
+                ? "bg-red-500/10 text-red-500 border border-red-500/20" 
+                : "bg-slate-100 dark:bg-slate-800 text-slate-500"
             }`}>
               {skuGerado.length} / 50 caracteres
             </span>
@@ -355,49 +410,90 @@ export default function CriadorDeSKU() {
 
       {/* History Log */}
       <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <History size={16} className="text-slate-400" />
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-              Histórico de SKUs Recentes
+              Histórico Permanente de SKUs cadastrados
             </h3>
           </div>
-          {historico.length > 0 && (
-            <button
-              onClick={limparHistorico}
-              className="text-[10px] font-bold text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 transition-all"
-            >
-              <Trash2 size={12} /> Limpar
-            </button>
-          )}
         </div>
 
         {historico.length > 0 ? (
-          <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-            {historico.map((sku, index) => (
+          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+            {historico.map((item) => (
               <div
-                key={index}
-                className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-orange-500/40 dark:hover:border-orange-500/30 transition-all group"
+                key={item.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-orange-500/40 dark:hover:border-orange-500/30 transition-all gap-3"
               >
-                <code className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300 truncate max-w-[80%] uppercase tracking-wider">
-                  {sku}
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(sku);
-                  }}
-                  title="Copiar novamente"
-                  className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-orange-500 hover:text-white rounded-lg text-slate-500 dark:text-slate-400 shadow-sm opacity-60 group-hover:opacity-100 transition-all flex items-center justify-center"
-                >
-                  <Copy size={13} />
-                </button>
+                <div className="flex flex-col gap-1 min-w-0">
+                  <code className="font-mono text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider break-all">
+                    {item.sku}
+                  </code>
+                  
+                  {/* SKU Details Badges */}
+                  <div className="flex flex-wrap gap-1.5 mt-1 text-[10px] font-bold">
+                    <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                      Loja: {item.loja === "OUTRA" ? `${item.customLoja} (Custom)` : item.loja}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                      Cat: {item.categoria === "OUTRA" ? `${item.customCategoria} (Custom)` : item.categoria}
+                    </span>
+                    {item.colecao && (
+                      <span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-500">
+                        Coleção: {item.colecao}
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      ID: {String(item.idSeq).padStart(item.padSize, "0")}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  {/* Reutilizar */}
+                  <button
+                    onClick={() => reutilizarParametros(item)}
+                    title="Carregar esses valores no formulário acima"
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-orange-500/10 hover:text-orange-500 dark:bg-slate-800 dark:hover:bg-orange-500/20 rounded-lg text-xs font-black text-slate-600 dark:text-slate-300 transition-all border border-transparent hover:border-orange-500/20"
+                  >
+                    <Undo2 size={13} />
+                    Reutilizar
+                  </button>
+
+                  {/* Copiar */}
+                  <button
+                    onClick={() => copiarSkuHistorico(item.sku)}
+                    title="Copiar novamente"
+                    className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-orange-500 hover:text-white rounded-lg text-slate-500 dark:text-slate-400 transition-all flex items-center justify-center border border-transparent shadow-sm"
+                  >
+                    {skuCopiadoId === item.sku ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
+                  </button>
+
+                  {/* Deletar (Double-Click Confirm Pattern) */}
+                  <button
+                    onClick={() => deletarSku(item.id)}
+                    title={deleteConfirmId === item.id ? "Clique novamente para confirmar" : "Apagar SKU do histórico"}
+                    className={`p-2 rounded-lg transition-all flex items-center justify-center border shadow-sm ${
+                      deleteConfirmId === item.id 
+                        ? "bg-red-500 border-red-600 text-white font-black text-xs px-3" 
+                        : "bg-slate-100 dark:bg-slate-800 hover:bg-red-500/10 hover:text-red-500 dark:hover:bg-red-500/20 border-transparent text-slate-400 hover:border-red-500/20"
+                    }`}
+                  >
+                    {deleteConfirmId === item.id ? (
+                      <span className="text-[10px] uppercase font-black">Confirmar?</span>
+                    ) : (
+                      <Trash2 size={13} />
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center bg-slate-100/50 dark:bg-slate-900/30">
+          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center bg-slate-100/50 dark:bg-slate-900/30">
             <span className="text-[11px] font-bold text-slate-400">Nenhum SKU gerado neste histórico.</span>
-            <span className="text-[10px] text-slate-400/80 mt-1">Ao copiar um SKU, ele aparecerá aqui para fácil referência.</span>
+            <span className="text-[10px] text-slate-400/80 mt-1">Ao copiar um SKU, ele será salvo permanentemente aqui.</span>
           </div>
         )}
       </div>
