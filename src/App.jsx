@@ -110,7 +110,9 @@ function App() {
   const [nomeExport, setNomeExport] = useState('');
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
   const [canvasScale, setCanvasScale] = useState(1);
-  const [abaAtual, setAbaAtual] = useState('fundos');
+  const [abaAtual, setAbaAtual] = useState(() => {
+    try { return localStorage.getItem('ui_aba_atual') || 'fundos'; } catch { return 'fundos'; }
+  });
   const [batchProgress, setBatchProgress] = useState(null); // { current, total, name }
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -203,6 +205,11 @@ function App() {
       } catch (e) { console.error('DB load error:', e); }
     })();
   }, []);
+
+  // Lembra a última aba aberta entre sessões
+  useEffect(() => {
+    try { localStorage.setItem('ui_aba_atual', abaAtual); } catch { /* storage indisponível */ }
+  }, [abaAtual]);
 
   const toggleTheme = () => {
     const v = !isDarkMode;
@@ -744,19 +751,18 @@ function App() {
 
       {/* ══════════════ CANVAS MIDDLE ══════════════ */}
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-[#020617] relative min-w-0">
-        {abaAtual === 'prompt' ? (
-          <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
-            <GeminiPromptGenerator />
-          </div>
-        ) : abaAtual === 'gerador-erp' ? (
-          <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
-            <GeradordeERP />
-          </div>
-        ) : abaAtual === 'criador-sku' ? (
-          <div className="flex-1 overflow-y-auto w-full z-10 custom-scrollbar">
-            <CriadorDeSKU />
-          </div>
-        ) : (
+        {/* As três ferramentas ficam sempre montadas (só escondidas) para preservar
+            o que foi digitado ao alternar de aba. */}
+        <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'prompt' ? '' : 'hidden'}`}>
+          <GeminiPromptGenerator />
+        </div>
+        <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'gerador-erp' ? '' : 'hidden'}`}>
+          <GeradordeERP />
+        </div>
+        <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'criador-sku' ? '' : 'hidden'}`}>
+          <CriadorDeSKU />
+        </div>
+        {(abaAtual === 'fundos' || abaAtual === 'estampas') && (
           <>
             {/* Dot grid background */}
             <div
