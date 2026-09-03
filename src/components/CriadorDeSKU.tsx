@@ -183,6 +183,7 @@ export default function CriadorDeSKU() {
   const btnClass = "px-3.5 py-3 rounded-lg border text-sm font-black transition-all flex items-center justify-center cursor-pointer";
 
   const isExceeded = skuGerado.length > 50;
+  const skuDuplicado = !!skuGerado && historico.some((item) => item.id === skuGerado);
 
   return (
     <div className="max-w-3xl mx-auto py-10 px-6 my-4 bg-slate-50 dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800">
@@ -373,6 +374,11 @@ export default function CriadorDeSKU() {
           {isExceeded && (
             <p className="text-xs font-bold text-red-500 dark:text-red-400 mt-2 flex items-center gap-1.5">
               ⚠️ O SKU excede o limite máximo recomendado de 50 caracteres para marketplaces! Tente encurtar o modelo ou a coleção.
+            </p>
+          )}
+          {skuDuplicado && (
+            <p className="text-xs font-bold text-amber-500 dark:text-amber-400 mt-2 flex items-center gap-1.5">
+              ⚠️ Este SKU já existe no histórico. Copiar de novo sobrescreve o registro anterior — considere usar "Copiar & Somar +1".
             </p>
           )}
         </div>

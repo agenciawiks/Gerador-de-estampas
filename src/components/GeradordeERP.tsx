@@ -1,5 +1,25 @@
-import { useState, useEffect } from "react";
-import { Copy, FileText, Eraser, CheckCircle2, AlertTriangle, Tag, Sparkles, CheckCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Copy, FileText, Eraser, CheckCircle2, AlertTriangle, Tag, Sparkles, CheckCircle, History, Trash2, Undo2, Link2 } from "lucide-react";
+import { appDb } from "../db";
+
+interface ErpItem {
+  id: string;
+  produto: string;
+  marca: string;
+  estampa: string;
+  material: string[];
+  cores: string[];
+  tamanhos: string[];
+  obs: string;
+  sku: string;
+  output: string;
+  createdAt: number;
+}
+
+const novoId = (): string =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 type ChipGroupProps = {
   options: string[];
@@ -64,6 +84,63 @@ export default function GeradordeERP() {
   const [output, setOutput] = useState('Preencha os campos acima e clique em "Gerar formato ERP".');
   const [copyLabel, setCopyLabel] = useState("Copiar Resultado");
   const [copiedTag, setCopiedTag] = useState(false);
+
+  const [historico, setHistorico] = useState<ErpItem[]>([]);
+  const [skusDisponiveis, setSkusDisponiveis] = useState<{ id: string; sku: string }[]>([]);
+  const [skuVinculado, setSkuVinculado] = useState("");
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const erpIdRef = useRef<string>("");
+
+  // Carrega histórico de ERP + SKUs disponíveis para vínculo
+  useEffect(() => {
+    (async () => {
+      try {
+        const [erps, skus] = await Promise.all([appDb.loadErps(), appDb.loadSkus()]);
+        setHistorico(erps as ErpItem[]);
+        setSkusDisponiveis(
+          (skus as { id: string; sku: string }[]).map((s) => ({ id: s.id, sku: s.sku }))
+        );
+      } catch (e) {
+        console.error("Erro ao carregar histórico de ERP:", e);
+      }
+    })();
+  }, []);
+
+  const reutilizar = (item: ErpItem) => {
+    setProduto(item.produto);
+    setMarca(item.marca);
+    setEstampa(item.estampa);
+    setMaterial(item.material || []);
+    setCores(item.cores || []);
+    setTamanhos(item.tamanhos || []);
+    setObs(item.obs || "");
+    setSkuVinculado(item.sku || "");
+    setOutput(item.output);
+    erpIdRef.current = item.id;
+  };
+
+  const copiarHistorico = (item: ErpItem) => {
+    navigator.clipboard.writeText(item.output).then(() => {
+      setCopiadoId(item.id);
+      setTimeout(() => setCopiadoId(null), 1500);
+    });
+  };
+
+  const deletar = async (id: string) => {
+    if (deleteConfirmId !== id) {
+      setDeleteConfirmId(id);
+      setTimeout(() => setDeleteConfirmId((prev) => (prev === id ? null : prev)), 3000);
+      return;
+    }
+    try {
+      await appDb.deleteErp(id);
+      setDeleteConfirmId(null);
+      setHistorico((await appDb.loadErps()) as ErpItem[]);
+    } catch (e) {
+      console.error("Erro ao deletar ERP:", e);
+    }
+  };
 
   // Checks if the selected product is a clothing item
   const isVestuario = ["Camiseta", "Camiseta Polo", "Moletom", "Regata"].includes(produto);
@@ -138,10 +215,13 @@ export default function GeradordeERP() {
     const tamStr = tamanhos.length ? tamanhos.join(", ") : "—";
     const matStr = material.length ? material.join(", ") : "—";
 
+    erpIdRef.current = novoId();
+
     let prompt = `# NOVO PRODUTO:\n`;
     prompt += `- PRODUTO: ${produto}\n`;
     prompt += `- MARCA: ${marca}\n`;
     prompt += `- ESTAMPA: ${estampa}\n`;
+    if (skuVinculado) prompt += `- SKU: ${skuVinculado}\n`;
     prompt += `- COR: ${coresStr}\n`;
     prompt += `- TAMANHOS: ${tamStr}\n`;
     prompt += `- MATERIAL: ${matStr}\n`;
@@ -168,9 +248,25 @@ export default function GeradordeERP() {
 
   const copiar = () => {
     if (output.startsWith("Preencha") || output.startsWith("⚠")) return;
-    navigator.clipboard.writeText(output).then(() => {
+    navigator.clipboard.writeText(output).then(async () => {
       setCopyLabel("Copiado!");
       setTimeout(() => setCopyLabel("Copiar Resultado"), 1500);
+
+      if (!erpIdRef.current) erpIdRef.current = novoId();
+      const registro: ErpItem = {
+        id: erpIdRef.current,
+        produto, marca, estampa,
+        material, cores, tamanhos, obs,
+        sku: skuVinculado,
+        output,
+        createdAt: Date.now(),
+      };
+      try {
+        await appDb.saveErp(registro);
+        setHistorico((await appDb.loadErps()) as ErpItem[]);
+      } catch (e) {
+        console.error("Erro ao salvar cadastro ERP:", e);
+      }
     });
   };
 
@@ -183,6 +279,8 @@ export default function GeradordeERP() {
     setCustomCor("");
     setTamanhos([]);
     setObs("");
+    setSkuVinculado("");
+    erpIdRef.current = "";
     setOutput('Preencha os campos acima e clique em "Gerar formato ERP".');
   };
 
@@ -361,6 +459,29 @@ export default function GeradordeERP() {
         />
       </Field>
 
+      {skusDisponiveis.length > 0 && (
+        <Field label="Vincular SKU (opcional)">
+          <div className="relative">
+            <select
+              value={skuVinculado}
+              onChange={(e) => setSkuVinculado(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Nenhum SKU vinculado</option>
+              {skusDisponiveis.map((s) => (
+                <option key={s.id} value={s.sku}>{s.sku}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+              <Link2 size={16} />
+            </div>
+          </div>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug block mt-1">
+            Puxa os SKUs já criados na aba "Criador SKU". Ao vincular, o código entra na descrição gerada.
+          </span>
+        </Field>
+      )}
+
       {/* Vestuary Clause Active Banner */}
       {isVestuario && (
         <div className="mb-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 text-xs flex gap-3 items-center shadow-sm">
@@ -417,6 +538,93 @@ export default function GeradordeERP() {
              </button>
           )}
         </div>
+      </div>
+
+      {/* Histórico permanente de cadastros ERP */}
+      <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-2 mb-5">
+          <History size={16} className="text-slate-400" />
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            Histórico de Cadastros ERP
+          </h3>
+        </div>
+
+        {historico.length > 0 ? (
+          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+            {historico.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col sm:flex-row sm:items-start justify-between p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-indigo-500/40 transition-all gap-3"
+              >
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">
+                    {item.estampa || "(sem estampa)"}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 mt-1 text-[10px] font-bold">
+                    {item.produto && (
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        {item.produto}
+                      </span>
+                    )}
+                    {item.marca && (
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        {item.marca}
+                      </span>
+                    )}
+                    {item.sku && (
+                      <span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-500 font-mono">
+                        SKU: {item.sku}
+                      </span>
+                    )}
+                    {(item.cores || []).length > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500">
+                        {item.cores.join(", ")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <button
+                    onClick={() => reutilizar(item)}
+                    title="Carregar esses valores no formulário acima"
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-500/10 hover:text-indigo-500 dark:bg-slate-800 dark:hover:bg-indigo-500/20 rounded-lg text-xs font-black text-slate-600 dark:text-slate-300 transition-all border border-transparent hover:border-indigo-500/20"
+                  >
+                    <Undo2 size={13} />
+                    Reutilizar
+                  </button>
+                  <button
+                    onClick={() => copiarHistorico(item)}
+                    title="Copiar novamente"
+                    className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-500 hover:text-white rounded-lg text-slate-500 dark:text-slate-400 transition-all flex items-center justify-center border border-transparent shadow-sm"
+                  >
+                    {copiadoId === item.id ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
+                  </button>
+                  <button
+                    onClick={() => deletar(item.id)}
+                    title={deleteConfirmId === item.id ? "Clique novamente para confirmar" : "Apagar cadastro do histórico"}
+                    className={`p-2 rounded-lg transition-all flex items-center justify-center border shadow-sm ${
+                      deleteConfirmId === item.id
+                        ? "bg-red-500 border-red-600 text-white font-black text-xs px-3"
+                        : "bg-slate-100 dark:bg-slate-800 hover:bg-red-500/10 hover:text-red-500 dark:hover:bg-red-500/20 border-transparent text-slate-400 hover:border-red-500/20"
+                    }`}
+                  >
+                    {deleteConfirmId === item.id ? (
+                      <span className="text-[10px] uppercase font-black">Confirmar?</span>
+                    ) : (
+                      <Trash2 size={13} />
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center bg-slate-100/50 dark:bg-slate-900/30">
+            <span className="text-[11px] font-bold text-slate-400">Nenhum cadastro salvo ainda.</span>
+            <span className="text-[10px] text-slate-400/80 mt-1">Ao copiar um resultado, ele é salvo aqui automaticamente.</span>
+          </div>
+        )}
       </div>
     </div>
   );

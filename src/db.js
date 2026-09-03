@@ -214,7 +214,7 @@ export const appDb = {
       }
     } else {
       const list = (await localforage.getItem('db_estampas')) || [];
-      const item = list.find(e => e.id !== id);
+      const item = list.find(e => e.id === id);
       if (item) fileUrl = item.dataUrl;
       const newList = list.filter(e => e.id !== id);
       await localforage.setItem('db_estampas', newList);
@@ -254,22 +254,19 @@ export const appDb = {
   },
 
   async saveSku(skuObj) {
+    const skuData = { ...skuObj, createdAt: Date.now() };
+
     if (isFirebaseConfigured) {
       try {
-        const skuData = {
-          ...skuObj,
-          createdAt: Date.now()
-        };
         await setDoc(doc(db, 'skus', skuObj.id), skuData);
         return skuData;
       } catch (error) {
-        console.error("Erro ao salvar SKU no Firebase:", error);
-        throw error;
+        // Não relança: cai no fallback local para nunca perder o SKU silenciosamente
+        console.error("Erro ao salvar SKU no Firebase, usando fallback local:", error);
       }
     }
 
-    // Fallback LocalForage
-    const skuData = { ...skuObj, createdAt: Date.now() };
+    // Fallback LocalForage (também usado quando o Firebase falha)
     const list = (await localforage.getItem('db_skus')) || [];
     // Evita duplicatas pelo ID
     const newList = [skuData, ...list.filter(item => item.id !== skuObj.id)];
@@ -283,8 +280,7 @@ export const appDb = {
         await deleteDoc(doc(db, 'skus', id));
         return;
       } catch (error) {
-        console.error("Erro ao deletar SKU do Firebase:", error);
-        throw error;
+        console.error("Erro ao deletar SKU do Firebase, usando fallback local:", error);
       }
     }
 
@@ -292,5 +288,56 @@ export const appDb = {
     const list = (await localforage.getItem('db_skus')) || [];
     const newList = list.filter(item => item.id !== id);
     await localforage.setItem('db_skus', newList);
+  },
+
+  // ── ERPs (cadastros de produto gerados) ────────────────────────────────────
+  async loadErps() {
+    if (isFirebaseConfigured) {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'erps'));
+        const erps = [];
+        querySnapshot.forEach((doc) => {
+          erps.push({ id: doc.id, ...doc.data() });
+        });
+        // Mais recente primeiro
+        return erps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      } catch (error) {
+        console.error("Erro ao carregar ERPs do Firebase:", error);
+      }
+    }
+    return (await localforage.getItem('db_erps')) || [];
+  },
+
+  async saveErp(erpObj) {
+    const erpData = { ...erpObj, createdAt: Date.now() };
+
+    if (isFirebaseConfigured) {
+      try {
+        await setDoc(doc(db, 'erps', erpObj.id), erpData);
+        return erpData;
+      } catch (error) {
+        console.error("Erro ao salvar ERP no Firebase, usando fallback local:", error);
+      }
+    }
+
+    const list = (await localforage.getItem('db_erps')) || [];
+    const newList = [erpData, ...list.filter(item => item.id !== erpObj.id)];
+    await localforage.setItem('db_erps', newList);
+    return erpData;
+  },
+
+  async deleteErp(id) {
+    if (isFirebaseConfigured) {
+      try {
+        await deleteDoc(doc(db, 'erps', id));
+        return;
+      } catch (error) {
+        console.error("Erro ao deletar ERP do Firebase, usando fallback local:", error);
+      }
+    }
+
+    const list = (await localforage.getItem('db_erps')) || [];
+    const newList = list.filter(item => item.id !== id);
+    await localforage.setItem('db_erps', newList);
   }
 };
