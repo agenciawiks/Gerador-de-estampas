@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Copy, Hash, Plus, Minus, RotateCcw, Trash2, CheckCircle2, History, RefreshCw, Undo2 } from "lucide-react";
 import { appDb } from "../db";
+import { usePersistentState } from "../usePersistentState";
 
 // Predefined Stores from the Guide
 const LOJAS_PREDEFINIDAS = [
@@ -49,15 +50,15 @@ const normalizarModelo = (texto: string): string => {
 };
 
 export default function CriadorDeSKU() {
-  const [loja, setLoja] = useState("OPR");
-  const [customLoja, setCustomLoja] = useState("");
-  
-  const [categoria, setCategoria] = useState("CAM");
-  const [customCategoria, setCustomCategoria] = useState("");
-  
-  const [colecao, setColecao] = useState("");
-  const [idSeq, setIdSeq] = useState(1);
-  const [padSize, setPadSize] = useState(2);
+  const [loja, setLoja] = usePersistentState<string>("sku_loja", "OPR");
+  const [customLoja, setCustomLoja] = usePersistentState<string>("sku_customLoja", "");
+
+  const [categoria, setCategoria] = usePersistentState<string>("sku_categoria", "CAM");
+  const [customCategoria, setCustomCategoria] = usePersistentState<string>("sku_customCategoria", "");
+
+  const [colecao, setColecao] = usePersistentState<string>("sku_colecao", "");
+  const [idSeq, setIdSeq] = usePersistentState<number>("sku_idSeq", 1);
+  const [padSize, setPadSize] = usePersistentState<number>("sku_padSize", 2);
   
   const [skuGerado, setSkuGerado] = useState("");
   const [historico, setHistorico] = useState<SkuItem[]>([]);

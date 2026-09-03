@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Copy, FileText, Eraser, CheckCircle2, AlertTriangle, Tag, Sparkles, CheckCircle, History, Trash2, Undo2, Link2 } from "lucide-react";
 import { appDb } from "../db";
+import { usePersistentState } from "../usePersistentState";
 
 interface ErpItem {
   id: string;
@@ -73,24 +74,27 @@ function Field({ label, children }: FieldProps) {
 }
 
 export default function GeradordeERP() {
-  const [produto, setProduto] = useState("");
-  const [marca, setMarca] = useState("");
-  const [estampa, setEstampa] = useState("");
-  const [material, setMaterial] = useState<string[]>([]);
-  const [cores, setCores] = useState<string[]>([]);
+  const [produto, setProduto] = usePersistentState<string>("erp_produto", "");
+  const [marca, setMarca] = usePersistentState<string>("erp_marca", "");
+  const [estampa, setEstampa] = usePersistentState<string>("erp_estampa", "");
+  const [material, setMaterial] = usePersistentState<string[]>("erp_material", []);
+  const [cores, setCores] = usePersistentState<string[]>("erp_cores", []);
   const [customCor, setCustomCor] = useState("");
-  const [tamanhos, setTamanhos] = useState<string[]>([]);
-  const [obs, setObs] = useState("");
-  const [output, setOutput] = useState('Preencha os campos acima e clique em "Gerar formato ERP".');
+  const [tamanhos, setTamanhos] = usePersistentState<string[]>("erp_tamanhos", []);
+  const [obs, setObs] = usePersistentState<string>("erp_obs", "");
+  const [skuVinculado, setSkuVinculado] = usePersistentState<string>("erp_skuVinculado", "");
+  const [output, setOutput] = usePersistentState<string>(
+    "erp_output",
+    'Preencha os campos acima e clique em "Gerar formato ERP".'
+  );
+  const [erpId, setErpId] = usePersistentState<string>("erp_id", "");
   const [copyLabel, setCopyLabel] = useState("Copiar Resultado");
   const [copiedTag, setCopiedTag] = useState(false);
 
   const [historico, setHistorico] = useState<ErpItem[]>([]);
   const [skusDisponiveis, setSkusDisponiveis] = useState<{ id: string; sku: string }[]>([]);
-  const [skuVinculado, setSkuVinculado] = useState("");
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const erpIdRef = useRef<string>("");
 
   // Carrega histórico de ERP + SKUs disponíveis para vínculo
   useEffect(() => {
@@ -117,7 +121,7 @@ export default function GeradordeERP() {
     setObs(item.obs || "");
     setSkuVinculado(item.sku || "");
     setOutput(item.output);
-    erpIdRef.current = item.id;
+    setErpId(item.id);
   };
 
   const copiarHistorico = (item: ErpItem) => {
@@ -215,7 +219,7 @@ export default function GeradordeERP() {
     const tamStr = tamanhos.length ? tamanhos.join(", ") : "—";
     const matStr = material.length ? material.join(", ") : "—";
 
-    erpIdRef.current = novoId();
+    setErpId(novoId());
 
     let prompt = `# NOVO PRODUTO:\n`;
     prompt += `- PRODUTO: ${produto}\n`;
@@ -252,9 +256,10 @@ export default function GeradordeERP() {
       setCopyLabel("Copiado!");
       setTimeout(() => setCopyLabel("Copiar Resultado"), 1500);
 
-      if (!erpIdRef.current) erpIdRef.current = novoId();
+      let id = erpId;
+      if (!id) { id = novoId(); setErpId(id); }
       const registro: ErpItem = {
-        id: erpIdRef.current,
+        id,
         produto, marca, estampa,
         material, cores, tamanhos, obs,
         sku: skuVinculado,
@@ -280,7 +285,7 @@ export default function GeradordeERP() {
     setTamanhos([]);
     setObs("");
     setSkuVinculado("");
-    erpIdRef.current = "";
+    setErpId("");
     setOutput('Preencha os campos acima e clique em "Gerar formato ERP".');
   };
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistentState } from "./usePersistentState";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -193,7 +194,7 @@ const labelClass = "text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 fl
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function GeminiPromptGenerator() {
-  const [form, setForm] = useState<FormState>({
+  const [form, setForm] = usePersistentState<FormState>("gpg_form", {
     genero: "homem",
     idade: "",
     etnia: "",
@@ -210,7 +211,7 @@ export default function GeminiPromptGenerator() {
     enquadramento: "retrato corpo inteiro, da cabeça aos pés",
   });
 
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = usePersistentState<string>("gpg_prompt", "");
   const [copied, setCopied] = useState(false);
 
   const set = (key: keyof FormState) => (val: string) =>
