@@ -10,12 +10,11 @@ import {
   Sun, Moon, Zap, ChevronRight, AlertCircle, CheckCircle,
   X, Info, ImagePlus, MousePointer2, Crosshair, Search, Copy,
   ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Eraser, Keyboard,
-  AlertTriangle, Bot, Hash
+  AlertTriangle, Bot, Package
 } from 'lucide-react';
 import './App.css';
 import GeminiPromptGenerator from './GeminiPromptGenerator';
-import GeradordeERP from './components/GeradordeERP';
-import CriadorDeSKU from './components/CriadorDeSKU';
+import Produtos from './components/Produtos';
 
 // ─── Toast hook ─────────────────────────────────────────────────────────────
 function useToast() {
@@ -111,7 +110,12 @@ function App() {
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
   const [canvasScale, setCanvasScale] = useState(1);
   const [abaAtual, setAbaAtual] = useState(() => {
-    try { return localStorage.getItem('ui_aba_atual') || 'fundos'; } catch { return 'fundos'; }
+    try {
+      const salva = localStorage.getItem('ui_aba_atual');
+      // Abas 'gerador-erp' e 'criador-sku' viraram a aba única 'produtos'
+      if (salva === 'gerador-erp' || salva === 'criador-sku') return 'produtos';
+      return salva || 'fundos';
+    } catch { return 'fundos'; }
   });
   const [batchProgress, setBatchProgress] = useState(null); // { current, total, name }
   const [loadingSingle, setLoadingSingle] = useState(false);
@@ -527,14 +531,13 @@ function App() {
           {[
             { key: 'fundos', icon: <Shirt size={13} />, label: 'MOCKUPS', count: fundos.length, color: 'green' },
             { key: 'estampas', icon: <ImageIcon size={13} />, label: 'LOGOS', count: estampas.length, color: 'yellow' },
+            { key: 'produtos', icon: <Package size={13} />, label: 'PRODUTOS', count: null, color: 'purple' },
             { key: 'prompt', icon: <Bot size={13} />, label: 'PROMPT', count: null, color: 'blue' },
-            { key: 'gerador-erp', icon: <FileText size={13} />, label: 'GERADOR ERP', count: null, color: 'purple' },
-            { key: 'criador-sku', icon: <Hash size={13} />, label: 'CRIADOR SKU', count: null, color: 'orange' },
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setAbaAtual(tab.key)}
-              className={`w-full py-3.5 text-[11px] font-bold flex justify-center items-center gap-1.5 transition-all outline-none focus:outline-none ${tab.key === 'criador-sku' ? 'col-span-2' : ''} ${abaAtual === tab.key
+              className={`w-full py-3.5 text-[11px] font-bold flex justify-center items-center gap-1.5 transition-all outline-none focus:outline-none ${abaAtual === tab.key
                   ? tab.color === 'green'
                     ? 'border-b-2 border-green-500 text-green-600 dark:text-green-400 bg-green-50/80 dark:bg-green-900/40 relative z-10'
                     : tab.color === 'yellow'
@@ -730,18 +733,16 @@ function App() {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center bg-slate-50/80 dark:bg-[#020617]">
             <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800/60 text-slate-300 dark:text-slate-600">
-              {abaAtual === 'gerador-erp' ? <FileText size={32} /> : abaAtual === 'criador-sku' ? <Hash size={32} /> : <Bot size={32} />}
+              {abaAtual === 'produtos' ? <Package size={32} /> : <Bot size={32} />}
             </div>
             <div>
               <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
-                {abaAtual === 'gerador-erp' ? 'Gerador de ERP' : abaAtual === 'criador-sku' ? 'Criador de SKU' : 'Gerador de Prompts'}
+                {abaAtual === 'produtos' ? 'Cadastro de Produto' : 'Gerador de Prompts'}
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed max-w-[200px] mx-auto">
-                {abaAtual === 'gerador-erp'
-                  ? 'Gere descrições formatadas para o seu sistema ERP.'
-                  : abaAtual === 'criador-sku'
-                    ? 'Gere SKUs padronizados para integração de estoque e e-commerce.'
-                    : 'Configure os detalhes físicos e de estilo para gerar o prompt ideal para inteligências artificiais.'}
+                {abaAtual === 'produtos'
+                  ? 'SKU e descrição ERP na mesma tela — individualmente ou os dois de uma vez.'
+                  : 'Configure os detalhes físicos e de estilo para gerar o prompt ideal para inteligências artificiais.'}
               </p>
             </div>
           </div>
@@ -756,11 +757,8 @@ function App() {
         <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'prompt' ? '' : 'hidden'}`}>
           <GeminiPromptGenerator />
         </div>
-        <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'gerador-erp' ? '' : 'hidden'}`}>
-          <GeradordeERP />
-        </div>
-        <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'criador-sku' ? '' : 'hidden'}`}>
-          <CriadorDeSKU />
+        <div className={`flex-1 overflow-y-auto w-full z-10 custom-scrollbar ${abaAtual === 'produtos' ? '' : 'hidden'}`}>
+          <Produtos />
         </div>
         {(abaAtual === 'fundos' || abaAtual === 'estampas') && (
           <>
